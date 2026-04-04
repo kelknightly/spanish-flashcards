@@ -11,7 +11,13 @@ export const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null
 
 export function getModel(modelName = 'gemini-2.5-flash') {
   if (!genAI) throw new Error('Gemini API key not configured.')
-  return genAI.getGenerativeModel({ model: modelName })
+  return genAI.getGenerativeModel({
+    model: modelName,
+    // Disable extended thinking — keeps responses fast for chat/eval use cases.
+    // thinkingConfig is not yet typed in SDK v0.24 but is valid in the API.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    generationConfig: { thinkingConfig: { thinkingBudget: 0 } } as any,
+  })
 }
 
 export interface EvaluationResult {
