@@ -1,0 +1,137 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Dark neon theme — single mode, always dark */
+    --background: 252 35% 7%;        /* #0D0A1A deep purple-black */
+    --foreground: 0 0% 100%;         /* #FFFFFF */
+    --card: 252 30% 14%;             /* #1A1530 dark purple surface */
+    --card-foreground: 0 0% 100%;
+    --popover: 252 30% 14%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 322 100% 59%;         /* #FF2D9B hot pink */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 270 100% 59%;       /* #9B2DFF electric purple */
+    --secondary-foreground: 0 0% 100%;
+    --muted: 252 25% 20%;
+    --muted-foreground: 0 0% 65%;
+    --accent: 204 100% 59%;          /* #2DAAFF neon blue */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 100% 59%;       /* #FF2D2D bright red */
+    --destructive-foreground: 0 0% 100%;
+    --border: 252 25% 25%;
+    --input: 252 25% 20%;
+    --ring: 322 100% 59%;
+    --radius: 0.75rem;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: #0D0A1A;
+    color: white;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+}
+
+/* ─── Animated gradient background ─────────────────────────────────── */
+.bg-animated {
+  background: radial-gradient(
+    ellipse at 20% 50%,
+    #1a0a2e 0%,
+    #0d0a1a 40%,
+    #0a0d1a 70%,
+    #0d0a1a 100%
+  );
+  background-size: 300% 300%;
+  animation: bgshift 30s ease infinite;
+}
+
+/* ─── Glassmorphism panel ───────────────────────────────────────────── */
+.glass {
+  background: rgba(26, 21, 48, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ─── Shimmer card border ───────────────────────────────────────────── */
+.card-shimmer {
+  position: relative;
+  border-radius: var(--radius);
+}
+
+.card-shimmer::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: calc(var(--radius) + 2px);
+  background: conic-gradient(
+    from var(--shimmer-angle, 0deg),
+    #FF2D9B,
+    #9B2DFF,
+    #2DAAFF,
+    #2DFF9B,
+    #FFD700,
+    #FF2D9B
+  );
+  animation: shimmer 3s linear infinite;
+  z-index: -1;
+}
+
+/* ─── 3D card flip ──────────────────────────────────────────────────── */
+.flip-card {
+  perspective: 1000px;
+  will-change: transform;
+}
+
+.flip-card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-style: preserve-3d;
+}
+
+.flip-card-inner.flipped {
+  transform: rotateY(180deg);
+}
+
+.flip-card-front,
+.flip-card-back {
+  position: absolute;
+  inset: 0;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  border-radius: var(--radius);
+}
+
+.flip-card-back {
+  transform: rotateY(180deg);
+}
+
+/* ─── Shake animation ───────────────────────────────────────────────── */
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}
+
+/* ─── Neon text glow ────────────────────────────────────────────────── */
+.text-glow-pink {
+  text-shadow: 0 0 10px #FF2D9B, 0 0 20px #FF2D9B44;
+}
+
+.text-glow-purple {
+  text-shadow: 0 0 10px #9B2DFF, 0 0 20px #9B2DFF44;
+}
+
+.text-glow-green {
+  text-shadow: 0 0 10px #2DFF9B, 0 0 20px #2DFF9B44;
+}
