@@ -9,7 +9,7 @@ if (!apiKey && typeof window === 'undefined') {
 
 export const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null
 
-export function getModel(modelName = 'gemini-2.0-flash') {
+export function getModel(modelName = 'gemini-2.5-flash') {
   if (!genAI) throw new Error('Gemini API key not configured.')
   return genAI.getGenerativeModel({ model: modelName })
 }
