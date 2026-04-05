@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Providers } from '@/components/Providers'
 import { SparkleCanvas } from '@/components/SparkleCanvas'
+import { SparkleProvider } from '@/contexts/SparkleContext'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -16,12 +17,14 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className="bg-brand-bg text-white antialiased">
-        <div className="bg-animated min-h-screen">
-          <Providers>
-            {children}
-          </Providers>
-        </div>
-        <SparkleCanvas />
+        <SparkleProvider>
+          <div className="bg-animated min-h-screen">
+            <Providers>
+              {children}
+            </Providers>
+          </div>
+          <SparkleCanvas />
+        </SparkleProvider>
       </body>
     </html>
   )

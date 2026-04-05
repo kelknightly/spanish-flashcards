@@ -1,0 +1,97 @@
+{
+  "bookNumber": 1,
+  "title": "The Magician's Nephew",
+  "titleEs": "El sobrino del mago",
+  "chapters": [
+    {
+      "number": 1,
+      "title": "The Wrong Door",
+      "titleEs": "La puerta equivocada",
+      "hasText": true
+    },
+    {
+      "number": 2,
+      "title": "Digory and His Uncle",
+      "titleEs": "Digory y su tío",
+      "hasText": true
+    },
+    {
+      "number": 3,
+      "title": "The Wood between the Worlds",
+      "titleEs": "El bosque entre los mundos",
+      "hasText": false
+    },
+    {
+      "number": 4,
+      "title": "The Bell and the Hammer",
+      "titleEs": "La campana y el martillo",
+      "hasText": false
+    },
+    {
+      "number": 5,
+      "title": "The Deplorable Word",
+      "titleEs": "La palabra deplorable",
+      "hasText": false
+    },
+    {
+      "number": 6,
+      "title": "The Beginning of Uncle Andrew's Troubles",
+      "titleEs": "El principio de los problemas del tío Andrew",
+      "hasText": false
+    },
+    {
+      "number": 7,
+      "title": "What Happened at the Front Door",
+      "titleEs": "Lo que sucedió ante la puerta principal",
+      "hasText": false
+    },
+    {
+      "number": 8,
+      "title": "The Fight at the Lamp-Post",
+      "titleEs": "La pelea junto al farol",
+      "hasText": false
+    },
+    {
+      "number": 9,
+      "title": "The Founding of Narnia",
+      "titleEs": "La fundación de Narnia",
+      "hasText": false
+    },
+    {
+      "number": 10,
+      "title": "The First Joke and Other Matters",
+      "titleEs": "El primer chiste y otras cuestiones",
+      "hasText": false
+    },
+    {
+      "number": 11,
+      "title": "Digory and His Uncle Are Both in Trouble",
+      "titleEs": "Digory y su tío tienen problemas",
+      "hasText": false
+    },
+    {
+      "number": 12,
+      "title": "Strawberry's Adventure",
+      "titleEs": "La aventura de Fresón",
+      "hasText": false
+    },
+    {
+      "number": 13,
+      "title": "An Unexpected Meeting",
+      "titleEs": "Un encuentro inesperado",
+      "hasText": false
+    },
+    {
+      "number": 14,
+      "title": "The Planting of the Tree",
+      "titleEs": "Se planta el árbol",
+      "hasText": false
+    },
+    {
+      "number": 15,
+      "title": "The End of This Story and the Beginning of All the Others",
+      "titleEs": "El final de esta historia y el inicio de todas las demás",
+      "hasText": false
+    }
+  ]
+}

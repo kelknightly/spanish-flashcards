@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { useSparkle } from '@/contexts/SparkleContext'
 
 const COLORS = [
   '#FF2D9B', '#9B2DFF', '#2DAAFF', '#2DFF9B',
@@ -22,6 +23,7 @@ const MAX_PARTICLES = 60
 
 export function SparkleCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const { registerBurst } = useSparkle()
 
   useEffect(() => {
     // Only run on pointer-precise (non-touch) devices
@@ -67,6 +69,30 @@ export function SparkleCanvas() {
     }
     window.addEventListener('mousemove', onMouseMove)
 
+    // Register the border-burst handler with the SparkleContext so any
+    // component can trigger a glitter explosion without direct canvas access.
+    registerBurst((rect: DOMRect) => {
+      // 8 positions around the card border (4 corners + 4 midpoints)
+      const positions = [
+        { x: rect.left,                      y: rect.top                       },
+        { x: rect.left + rect.width  / 2,    y: rect.top                       },
+        { x: rect.right,                     y: rect.top                       },
+        { x: rect.right,                     y: rect.top + rect.height / 2     },
+        { x: rect.right,                     y: rect.bottom                    },
+        { x: rect.left + rect.width  / 2,    y: rect.bottom                    },
+        { x: rect.left,                      y: rect.bottom                    },
+        { x: rect.left,                      y: rect.top + rect.height / 2     },
+      ]
+      for (const pos of positions) {
+        for (let i = 0; i < 5; i++) {
+          spawnParticle(
+            pos.x + (Math.random() - 0.5) * 24,
+            pos.y + (Math.random() - 0.5) * 24,
+          )
+        }
+      }
+    })
+
     const draw = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
@@ -103,7 +129,7 @@ export function SparkleCanvas() {
       window.removeEventListener('mousemove', onMouseMove)
       window.removeEventListener('resize', resize)
     }
-  }, [])
+  }, [registerBurst])
 
   return (
     <canvas

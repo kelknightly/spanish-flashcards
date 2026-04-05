@@ -1,0 +1,97 @@
+{
+  "bookNumber": 3,
+  "title": "Prince Caspian",
+  "titleEs": "El Príncipe Caspian",
+  "chapters": [
+    {
+      "number": 1,
+      "title": "The Island",
+      "titleEs": "La isla",
+      "hasText": false
+    },
+    {
+      "number": 2,
+      "title": "The Ancient Treasure House",
+      "titleEs": "El antiguo tesoro",
+      "hasText": false
+    },
+    {
+      "number": 3,
+      "title": "The Dwarf",
+      "titleEs": "El enano",
+      "hasText": false
+    },
+    {
+      "number": 4,
+      "title": "The Dwarf Tells of Prince Caspian",
+      "titleEs": "El enano habla del Príncipe Caspian",
+      "hasText": false
+    },
+    {
+      "number": 5,
+      "title": "Caspian's Adventure in the Mountains",
+      "titleEs": "La aventura de Caspian en las montañas",
+      "hasText": false
+    },
+    {
+      "number": 6,
+      "title": "The People That Lived in Hiding",
+      "titleEs": "La gente que vivía escondida",
+      "hasText": false
+    },
+    {
+      "number": 7,
+      "title": "Old Narnia in Danger",
+      "titleEs": "El Gran Concejo",
+      "hasText": false
+    },
+    {
+      "number": 8,
+      "title": "How They Left the Island",
+      "titleEs": "Cómo abandonaron la isla",
+      "hasText": false
+    },
+    {
+      "number": 9,
+      "title": "What Lucy Saw",
+      "titleEs": "Lo que vio Lucy",
+      "hasText": false
+    },
+    {
+      "number": 10,
+      "title": "The Return of the Lion",
+      "titleEs": "El regreso del León",
+      "hasText": false
+    },
+    {
+      "number": 11,
+      "title": "The Lion Roars",
+      "titleEs": "El rugido del León",
+      "hasText": false
+    },
+    {
+      "number": 12,
+      "title": "Sorcery and Sudden Vengeance",
+      "titleEs": "Hechicería y brusca venganza",
+      "hasText": false
+    },
+    {
+      "number": 13,
+      "title": "The High King in Command",
+      "titleEs": "El Gran Rey en campaña",
+      "hasText": false
+    },
+    {
+      "number": 14,
+      "title": "How All Were Very Busy",
+      "titleEs": "Cómo todos anduvieron muy ocupados",
+      "hasText": false
+    },
+    {
+      "number": 15,
+      "title": "Aslan Makes a Door in the Air",
+      "titleEs": "Aslan abre una puerta en el aire",
+      "hasText": false
+    }
+  ]
+}

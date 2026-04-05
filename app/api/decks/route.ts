@@ -16,6 +16,8 @@ interface DeckInput {
   bookNumber?: number
   chapterNumber?: number
   category?: string
+  subcategory?: string
+  version?: number
   cards: CardInput[]
   chatSessionId?: string
 }
@@ -37,7 +39,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
-  const { deckName, bookNumber, chapterNumber, category, cards, chatSessionId } = body
+  const { deckName, bookNumber, chapterNumber, category, subcategory, version, cards, chatSessionId } = body
 
   if (!deckName?.trim() || !cards?.length) {
     return NextResponse.json({ error: 'deckName and cards are required' }, { status: 400 })
@@ -56,6 +58,8 @@ export async function POST(request: NextRequest) {
       book_number: bookNumber ?? null,
       chapter_number: chapterNumber ?? null,
       category: category ?? null,
+      subcategory: subcategory ?? null,
+      version: version ?? 1,
     })
     .select('id')
     .single()
@@ -128,7 +132,8 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ deckId, cardCount: cardRows.length })
 }
 
-// List all decks for the authenticated user
+// List decks for the authenticated user, with optional book/chapter filters
+// and mastery stats from the get_deck_mastery_stats RPC.
 export async function GET(request: NextRequest) {
   const user = await getAuthUserFromRequest(request)
   if (!user || !isAllowedEmail(user.email)) {
@@ -143,15 +148,69 @@ export async function GET(request: NextRequest) {
     global: { headers: { Authorization: `Bearer ${token}` } },
   })
 
-  const { data, error } = await sb
+  const { searchParams } = new URL(request.url)
+  const bookFilter = searchParams.get('book')
+  const chapterFilter = searchParams.get('chapter')
+
+  let query = sb
     .from('decks')
     .select(
-      `id, name, book_number, chapter_number, category, created_at, last_studied_at,
-       cards(count)`
+      `id, name, book_number, chapter_number, category, subcategory,
+       version, is_system_generated, parent_deck_id,
+       created_at, last_studied_at, cards(count)`
     )
     .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
+    .order('book_number',    { ascending: true,  nullsFirst: false })
+    .order('chapter_number', { ascending: true,  nullsFirst: false })
+    .order('subcategory',    { ascending: true,  nullsFirst: false })
+    .order('version',        { ascending: true })
 
+  if (bookFilter)    query = query.eq('book_number',    parseInt(bookFilter))
+  if (chapterFilter) query = query.eq('chapter_number', parseInt(chapterFilter))
+
+  const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ decks: data })
+
+  const rows = data ?? []
+
+  // Fetch mastery stats for all returned decks in one RPC call
+  const deckIds = rows.map((d) => d.id)
+  const masteryMap: Record<string, { total: number; mastered: number }> = {}
+
+  if (deckIds.length > 0) {
+    const { data: masteryData } = await sb.rpc('get_deck_mastery_stats', {
+      deck_ids: deckIds,
+      p_user_id: user.id,
+    })
+    if (masteryData) {
+      for (const row of masteryData as { deck_id: string; total_cards: number; mastered_cards: number }[]) {
+        masteryMap[row.deck_id] = {
+          total: Number(row.total_cards),
+          mastered: Number(row.mastered_cards),
+        }
+      }
+    }
+  }
+
+  const decks = rows.map((d) => {
+    const m = masteryMap[d.id] ?? { total: 0, mastered: 0 }
+    const legacyCount = Array.isArray(d.cards) && d.cards[0] ? (d.cards[0] as { count: number }).count : 0
+    return {
+      id: d.id,
+      name: d.name,
+      book_number: d.book_number,
+      chapter_number: d.chapter_number,
+      category: d.category,
+      subcategory: d.subcategory,
+      version: d.version ?? 1,
+      is_system_generated: d.is_system_generated ?? false,
+      parent_deck_id: d.parent_deck_id ?? null,
+      created_at: d.created_at,
+      last_studied_at: d.last_studied_at,
+      card_count: m.total || legacyCount,
+      mastered_count: m.mastered,
+    }
+  })
+
+  return NextResponse.json({ decks })
 }

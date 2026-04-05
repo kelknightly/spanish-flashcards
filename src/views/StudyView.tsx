@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import { SparkleContext } from '@/contexts/SparkleContext'
 
 interface SourceSentence {
   es: string
@@ -63,6 +64,8 @@ export function StudyView({ deckId }: Props) {
   const [incorrect, setIncorrect] = useState(0)
 
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
+  const { triggerBurst } = useContext(SparkleContext)
 
   // Load deck
   useEffect(() => {
@@ -116,18 +119,20 @@ export function StudyView({ deckId }: Props) {
       if (result.isCorrect) {
         setCorrect((c) => c + 1)
         setFlipped(true)
+        if (cardRef.current) triggerBurst(cardRef.current.getBoundingClientRect())
       } else {
         setIncorrect((i) => i + 1)
         setShaking(true)
         setTimeout(() => {
           setShaking(false)
           setFlipped(true)
+          if (cardRef.current) triggerBurst(cardRef.current.getBoundingClientRect())
         }, 450)
       }
     } catch {
       setCardState('input')
     }
-  }, [currentCard, session, answer, cardState])
+  }, [currentCard, session, answer, cardState, triggerBurst])
 
   const nextCard = useCallback(() => {
     if (currentIdx + 1 >= cards.length) {
@@ -297,6 +302,7 @@ export function StudyView({ deckId }: Props) {
       {/* Flip card */}
       <div className="flex-1 flex items-center justify-center">
         <div
+          ref={cardRef}
           className={`flip-card w-full max-w-xl ${shaking ? 'animate-shake' : ''}`}
           style={{ height: 'clamp(320px, 50vh, 480px)' }}
         >
@@ -314,7 +320,6 @@ export function StudyView({ deckId }: Props) {
                     {showSentence ? (
                       <div className="text-sm text-white/60 italic max-w-sm">
                         <p className="text-neon-blue/80">{currentCard.source_sentences[0].es}</p>
-                        <p className="mt-1 text-white/40">{currentCard.source_sentences[0].en}</p>
                       </div>
                     ) : (
                       <button
