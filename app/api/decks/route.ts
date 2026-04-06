@@ -175,7 +175,7 @@ export async function GET(request: NextRequest) {
 
   // Fetch mastery stats for all returned decks in one RPC call
   const deckIds = rows.map((d) => d.id)
-  const masteryMap: Record<string, { total: number; mastered: number }> = {}
+  const masteryMap: Record<string, { total: number; mastered: number; reviewed: number }> = {}
 
   if (deckIds.length > 0) {
     const { data: masteryData } = await sb.rpc('get_deck_mastery_stats', {
@@ -183,17 +183,18 @@ export async function GET(request: NextRequest) {
       p_user_id: user.id,
     })
     if (masteryData) {
-      for (const row of masteryData as { deck_id: string; total_cards: number; mastered_cards: number }[]) {
+      for (const row of masteryData as { deck_id: string; total_cards: number; mastered_cards: number; reviewed_cards: number }[]) {
         masteryMap[row.deck_id] = {
           total: Number(row.total_cards),
           mastered: Number(row.mastered_cards),
+          reviewed: Number(row.reviewed_cards ?? 0),
         }
       }
     }
   }
 
   const decks = rows.map((d) => {
-    const m = masteryMap[d.id] ?? { total: 0, mastered: 0 }
+    const m = masteryMap[d.id] ?? { total: 0, mastered: 0, reviewed: 0 }
     const legacyCount = Array.isArray(d.cards) && d.cards[0] ? (d.cards[0] as { count: number }).count : 0
     return {
       id: d.id,
@@ -209,6 +210,7 @@ export async function GET(request: NextRequest) {
       last_studied_at: d.last_studied_at,
       card_count: m.total || legacyCount,
       mastered_count: m.mastered,
+      reviewed_count: m.reviewed,
     }
   })
 

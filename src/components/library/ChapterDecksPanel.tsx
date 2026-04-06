@@ -12,6 +12,7 @@ interface DeckInfo {
   version: number
   card_count: number
   mastered_count: number
+  reviewed_count: number
   is_system_generated: boolean
   parent_deck_id: string | null
 }
@@ -128,24 +129,41 @@ export function ChapterDecksPanel({ bookNumber, chapterNumber }: Props) {
                 )}
               </div>
 
-              {/* Mastery bar */}
+          {/* Progress bar */}
               {deck ? (
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs text-white/40">
-                    <span>{deck.mastered_count}/{deck.card_count} mastered</span>
+                    <span>
+                      {deck.mastered_count > 0
+                        ? `${deck.mastered_count}/${deck.card_count} mastered`
+                        : `${deck.reviewed_count}/${deck.card_count} reviewed`}
+                    </span>
                     {allMastered && (
                       <span className="text-neon-gold">🏆 All mastered</span>
                     )}
                   </div>
                   <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                    {/* Reviewed progress (base layer) */}
                     <div
-                      className="h-full bg-neon-green transition-all duration-500"
+                      className="relative h-full rounded-full bg-neon-purple/60 transition-all duration-500"
                       style={{
                         width: deck.card_count
-                          ? `${Math.round((deck.mastered_count / deck.card_count) * 100)}%`
+                          ? `${Math.round((deck.reviewed_count / deck.card_count) * 100)}%`
                           : '0%',
                       }}
-                    />
+                    >
+                      {/* Mastered progress (overlay) */}
+                      {deck.mastered_count > 0 && (
+                        <div
+                          className="absolute inset-y-0 left-0 bg-neon-green transition-all duration-500"
+                          style={{
+                            width: deck.reviewed_count
+                              ? `${Math.round((deck.mastered_count / deck.reviewed_count) * 100)}%`
+                              : '0%',
+                          }}
+                        />
+                      )}
+                    </div>
                   </div>
                 </div>
               ) : (
