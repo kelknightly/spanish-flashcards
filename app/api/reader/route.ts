@@ -27,17 +27,17 @@ export async function GET(request: NextRequest) {
   // Load chapter text from filesystem (server-only)
   const text = getChapterText(book, chapter)
 
-  // Fetch all cards for decks belonging to this book + chapter
+  // Fetch all decks for this user/book/chapter, with their cards
   const sb = createClient(url, anonKey, {
     global: { headers: { Authorization: `Bearer ${token}` } },
   })
 
-  const { data: rows, error } = await sb
-    .from('cards')
-    .select('spanish_term, decks!inner(subcategory)')
-    .eq('decks.user_id', user.id)
-    .eq('decks.book_number', book)
-    .eq('decks.chapter_number', chapter)
+  const { data: deckRows, error } = await sb
+    .from('decks')
+    .select('subcategory, cards(spanish_term)')
+    .eq('user_id', user.id)
+    .eq('book_number', book)
+    .eq('chapter_number', chapter)
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -65,21 +65,20 @@ export async function GET(request: NextRequest) {
 
   const termMap = new Map<string, string>()
 
-  for (const row of rows ?? []) {
-    const term = (row.spanish_term as string).toLowerCase()
-    // Supabase join returns an array; take the first element
-    const decksArr = row.decks as unknown as Array<{ subcategory: string | null }>
-    const subcategory = decksArr?.[0]?.subcategory ?? 'general'
-
-    const existing = termMap.get(term)
-    if (!existing) {
-      termMap.set(term, subcategory)
-    } else {
-      // Keep whichever has higher priority (lower index = higher priority)
-      const existingPriority = SUBCATEGORY_PRIORITY.indexOf(existing)
-      const newPriority = SUBCATEGORY_PRIORITY.indexOf(subcategory)
-      if (newPriority < existingPriority) {
+  for (const deck of deckRows ?? []) {
+    const subcategory = (deck.subcategory as string | null) ?? 'general'
+    const cards = deck.cards as Array<{ spanish_term: string }>
+    for (const card of cards ?? []) {
+      const term = card.spanish_term.toLowerCase()
+      const existing = termMap.get(term)
+      if (!existing) {
         termMap.set(term, subcategory)
+      } else {
+        const existingPriority = SUBCATEGORY_PRIORITY.indexOf(existing)
+        const newPriority = SUBCATEGORY_PRIORITY.indexOf(subcategory)
+        if (newPriority < existingPriority) {
+          termMap.set(term, subcategory)
+        }
       }
     }
   }
