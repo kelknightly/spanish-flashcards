@@ -178,7 +178,7 @@ export function StudyView({ deckId }: Props) {
     } catch {
       setCardState('input')
     }
-  }, [currentCard, session, answer, cardState, triggerBurst])
+  }, [currentCard, session, answer, cardState, triggerBurst, play])
 
   const nextCard = useCallback(() => {
     if (currentIdx + 1 >= cards.length) {
@@ -244,12 +244,12 @@ export function StudyView({ deckId }: Props) {
           <h1 className="text-3xl font-bold text-neon-purple text-glow-purple mb-1">
             Session Complete
           </h1>
-          <p className="text-white/50 text-sm mb-6">{deck?.name}</p>
+          <p className="text-white/80 text-sm mb-6 font-medium">{deck?.name}</p>
 
           <div className="flex justify-center gap-8 mb-8">
             <div className="text-center">
               <div className="text-4xl font-bold text-neon-green">{correct}</div>
-              <div className="text-xs text-white/50 mt-1">Correct</div>
+              <div className="text-xs text-white/80 mt-1 font-semibold uppercase tracking-wide">Correct</div>
             </div>
             <div className="text-center">
               <button
@@ -274,17 +274,17 @@ export function StudyView({ deckId }: Props) {
               >
                 {incorrect}
               </button>
-              <div className="text-xs text-white/50 mt-1">Incorrect</div>
+              <div className="text-xs text-white/80 mt-1 font-semibold uppercase tracking-wide">Incorrect</div>
             </div>
             <div className="text-center">
               <div className={`text-4xl font-bold ${passed ? 'text-neon-gold' : 'text-white/70'}`}>
                 {pct}%
               </div>
-              <div className="text-xs text-white/50 mt-1">Score</div>
+              <div className="text-xs text-white/80 mt-1 font-semibold uppercase tracking-wide">Score</div>
             </div>
           </div>
 
-          <p className="text-white/60 text-sm mb-8">
+          <p className="text-white/90 text-sm mb-8">
             {passed
               ? 'Excellent work! Keep it up — you\'re building lasting vocabulary.'
               : 'Good effort! Reviewing the tricky ones will strengthen your recall.'}
@@ -300,7 +300,9 @@ export function StudyView({ deckId }: Props) {
               }}
               className="rounded-lg border border-white/20 px-4 py-2 text-sm text-white/70 hover:text-white hover:border-white/40 transition-colors"
             >
-              All Decks
+              {deck?.book_number && deck?.chapter_number
+                ? `Bk ${deck.book_number} · Ch ${deck.chapter_number} Decks`
+                : 'All Decks'}
             </button>
             <button
               onClick={() => {
