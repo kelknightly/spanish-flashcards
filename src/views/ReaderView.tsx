@@ -207,7 +207,7 @@ function AnnotatedText({
   )
 
   return (
-    <p className="whitespace-pre-wrap leading-8 text-[15px] text-white/85">
+    <p className="whitespace-pre-wrap leading-8 text-base md:text-[15px] text-white/85">
       {spans.map((span, idx) => {
         if (span.subcategory === null) {
           return <span key={idx}>{span.text}</span>
@@ -295,6 +295,10 @@ function ReaderContent() {
     new Set(WORD_TYPES.map((w) => w.subcategory))
   )
 
+  // Mobile: which step of the drill-down are we on?
+  // 'books' | 'chapters' | 'text'
+  const mobileStep = !selectedBook ? 'books' : !selectedChapter ? 'chapters' : 'text'
+
   const selectBook = (bookNumber: number) => {
     router.push(`/reader?book=${bookNumber}`)
   }
@@ -347,92 +351,213 @@ function ReaderContent() {
     setActiveSubcategories((prev) => {
       const allPresent = presentTypes.every((s) => prev.has(s))
       if (allPresent) {
-        // Deselect all
         return new Set()
       } else {
-        // Select all present
         return new Set(presentTypes)
       }
     })
   }, [presentTypes])
 
-  return (
-    <div className="flex h-[calc(100vh-56px)] overflow-hidden">
-      {/* ── Book panel ────────────────────────────────────────── */}
-      <BookListPanel books={books} selectedBook={selectedBook} onSelect={selectBook} />
+  // ── Mobile layout ──────────────────────────────────────────────────────
+  // Renders as a drill-down: Books → Chapters → Text
+  // Each step fills the full screen; back button returns to previous step.
 
-      {/* ── Chapter panel ─────────────────────────────────────── */}
-      {activeBook && (
-        <ChapterListPanel
-          book={activeBook}
-          selectedChapter={selectedChapter}
-          onSelect={selectChapter}
+  const mobileHeader = (title: string, backHref?: string) => (
+    <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10 bg-brand-surface/60 backdrop-blur shrink-0">
+      {backHref && (
+        <button
+          onClick={() => router.push(backHref)}
+          className="text-white/50 hover:text-white transition-colors p-1 -ml-1"
+          aria-label="Go back"
+        >
+          ←
+        </button>
+      )}
+      <span className="text-sm font-semibold text-white/80 truncate">{title}</span>
+    </div>
+  )
+
+  // ── Mobile: Books step ─────────────────────────────────────────────────
+  const mobileBooksView = (
+    <div className="flex flex-col h-[calc(100vh-56px)] md:hidden">
+      {mobileHeader('Reader — Choose a Book')}
+      <ul className="flex-1 overflow-y-auto py-2">
+        {books.map((book) => (
+          <li key={book.bookNumber}>
+            <button
+              onClick={() => selectBook(book.bookNumber)}
+              className="w-full text-left px-5 py-4 border-b border-white/5 hover:bg-white/5 transition-colors active:bg-white/10"
+            >
+              <p className="text-xs font-semibold uppercase tracking-wider text-white/40 mb-0.5">
+                Book {book.bookNumber}
+              </p>
+              <p className="text-base font-medium text-white leading-snug">{book.titleEs}</p>
+              <p className="text-xs text-white/30 mt-0.5">{book.chapters.length} chapters</p>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+
+  // ── Mobile: Chapters step ──────────────────────────────────────────────
+  const mobileChaptersView = activeBook ? (
+    <div className="flex flex-col h-[calc(100vh-56px)] md:hidden">
+      {mobileHeader(activeBook.titleEs, '/reader')}
+      <ul className="flex-1 overflow-y-auto py-2">
+        {activeBook.chapters.map((chapter) => {
+          const hasText = !!chapter.hasText
+          return (
+            <li key={chapter.number}>
+              <button
+                onClick={() => hasText && selectChapter(chapter.number)}
+                disabled={!hasText}
+                className={`w-full text-left px-5 py-3.5 border-b border-white/5 transition-colors flex items-center gap-3 ${
+                  hasText
+                    ? 'hover:bg-white/5 active:bg-white/10'
+                    : 'opacity-40 cursor-not-allowed'
+                }`}
+              >
+                <span className="text-sm font-bold text-white/30 min-w-[1.75rem]">{chapter.number}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-white/80 leading-snug truncate">{chapter.titleEs}</p>
+                  {!hasText && <p className="text-xs text-white/25 mt-0.5">No text loaded</p>}
+                </div>
+                {hasText && <span className="text-white/20 text-lg">›</span>}
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  ) : null
+
+  // ── Mobile: Text step ──────────────────────────────────────────────────
+  const mobileChapterMeta = activeBook?.chapters.find((c) => c.number === selectedChapter)
+  const mobileTextView = (
+    <div className="flex flex-col h-[calc(100vh-56px)] md:hidden">
+      {mobileHeader(
+        mobileChapterMeta?.titleEs ?? 'Chapter',
+        `/reader?book=${selectedBook}`
+      )}
+
+      {/* Filter bar */}
+      {!loading && chapterText && (
+        <FilterBar
+          presentTypes={presentTypes}
+          activeSubcategories={activeSubcategories}
+          onToggle={handleToggle}
+          onToggleAll={handleToggleAll}
         />
       )}
 
-      {/* ── Text panel ────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {!selectedBook && (
-          <div className="flex-1 flex items-center justify-center">
-            <p className="text-white/30 text-sm">Select a book to start reading</p>
+      {/* Scrollable text */}
+      <div className="flex-1 overflow-y-auto px-5 py-5 pb-24">
+        {loading && (
+          <p className="text-white/40 text-sm animate-pulse">Loading chapter…</p>
+        )}
+        {!loading && !chapterText && (
+          <div className="text-center mt-20">
+            <p className="text-white/30 text-sm">No text loaded for this chapter yet.</p>
           </div>
         )}
-
-        {selectedBook && !selectedChapter && (
-          <div className="flex-1 flex items-center justify-center">
-            <p className="text-white/30 text-sm">Select a chapter</p>
-          </div>
-        )}
-
-        {selectedBook && selectedChapter && (
-          <>
-            {/* Filter bar (sticky within this panel) */}
-            {!loading && chapterText && (
-              <FilterBar
-                presentTypes={presentTypes}
-                activeSubcategories={activeSubcategories}
-                onToggle={handleToggle}
-                onToggleAll={handleToggleAll}
-              />
-            )}
-
-            {/* Scrollable text area */}
-            <div className="flex-1 overflow-y-auto px-6 py-6 md:px-10 md:py-8">
-              {loading && (
-                <p className="text-white/40 text-sm animate-pulse">Loading chapter…</p>
-              )}
-
-              {!loading && !chapterText && (
-                <div className="text-center mt-20">
-                  <p className="text-white/30 text-sm">No text loaded for this chapter yet.</p>
-                </div>
-              )}
-
-              {!loading && chapterText && (
-                <div className="max-w-2xl mx-auto space-y-4">
-                  {/* Word count + annotation info */}
-                  <div className="flex items-center gap-4 mb-6 text-xs text-white/30">
-                    <span>{terms.length} vocabulary terms annotated</span>
-                    {activeSubcategories.size === 0 && (
-                      <span className="text-amber-400/70">No filters active — all text plain</span>
-                    )}
-                  </div>
-
-                  {chapterText.split(/\n\n+/).map((paragraph, pIdx) => (
-                    <AnnotatedText
-                      key={pIdx}
-                      text={paragraph}
-                      terms={terms}
-                      activeSubcategories={activeSubcategories}
-                    />
-                  ))}
-                </div>
-              )}
+        {!loading && chapterText && (
+          <div className="space-y-5">
+            <div className="text-xs text-white/25 mb-4">
+              {terms.length} terms annotated
             </div>
-          </>
+            {chapterText.split(/\n\n+/).map((paragraph, pIdx) => (
+              <AnnotatedText
+                key={pIdx}
+                text={paragraph}
+                terms={terms}
+                activeSubcategories={activeSubcategories}
+              />
+            ))}
+          </div>
         )}
       </div>
     </div>
+  )
+
+  return (
+    <>
+      {/* ── Mobile drill-down (hidden on md+) ─────────────────── */}
+      {mobileStep === 'books' && mobileBooksView}
+      {mobileStep === 'chapters' && mobileChaptersView}
+      {mobileStep === 'text' && mobileTextView}
+
+      {/* ── Desktop 3-panel layout (hidden on mobile) ─────────── */}
+      <div className="hidden md:flex h-[calc(100vh-56px)] overflow-hidden">
+        {/* Book panel */}
+        <BookListPanel books={books} selectedBook={selectedBook} onSelect={selectBook} />
+
+        {/* Chapter panel */}
+        {activeBook && (
+          <ChapterListPanel
+            book={activeBook}
+            selectedChapter={selectedChapter}
+            onSelect={selectChapter}
+          />
+        )}
+
+        {/* Text panel */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {!selectedBook && (
+            <div className="flex-1 flex items-center justify-center">
+              <p className="text-white/30 text-sm">Select a book to start reading</p>
+            </div>
+          )}
+
+          {selectedBook && !selectedChapter && (
+            <div className="flex-1 flex items-center justify-center">
+              <p className="text-white/30 text-sm">Select a chapter</p>
+            </div>
+          )}
+
+          {selectedBook && selectedChapter && (
+            <>
+              {!loading && chapterText && (
+                <FilterBar
+                  presentTypes={presentTypes}
+                  activeSubcategories={activeSubcategories}
+                  onToggle={handleToggle}
+                  onToggleAll={handleToggleAll}
+                />
+              )}
+              <div className="flex-1 overflow-y-auto px-6 py-6 md:px-10 md:py-8">
+                {loading && (
+                  <p className="text-white/40 text-sm animate-pulse">Loading chapter…</p>
+                )}
+                {!loading && !chapterText && (
+                  <div className="text-center mt-20">
+                    <p className="text-white/30 text-sm">No text loaded for this chapter yet.</p>
+                  </div>
+                )}
+                {!loading && chapterText && (
+                  <div className="max-w-2xl mx-auto space-y-4">
+                    <div className="flex items-center gap-4 mb-6 text-xs text-white/30">
+                      <span>{terms.length} vocabulary terms annotated</span>
+                      {activeSubcategories.size === 0 && (
+                        <span className="text-amber-400/70">No filters active — all text plain</span>
+                      )}
+                    </div>
+                    {chapterText.split(/\n\n+/).map((paragraph, pIdx) => (
+                      <AnnotatedText
+                        key={pIdx}
+                        text={paragraph}
+                        terms={terms}
+                        activeSubcategories={activeSubcategories}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </>
   )
 }
 

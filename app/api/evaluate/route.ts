@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
     spanishTerm: string
     englishAnswer: string
     sourceSentences?: Array<{ es: string; en: string }>
+    direction?: 'es-to-en' | 'en-to-es'
   }
   try {
     body = await request.json()
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
-  const { vocabTermId, userAnswer, spanishTerm, englishAnswer, sourceSentences = [] } = body
+  const { vocabTermId, userAnswer, spanishTerm, englishAnswer, sourceSentences = [], direction = 'es-to-en' } = body
 
   if (!userAnswer?.trim() || !spanishTerm || !englishAnswer || !vocabTermId) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -46,7 +47,25 @@ export async function POST(request: NextRequest) {
       ? `\nSource sentence: "${sourceSentences[0].es}" (English: "${sourceSentences[0].en}")`
       : ''
 
-  const prompt = `You are evaluating a Spanish vocabulary flashcard answer.
+  const prompt = direction === 'en-to-es'
+    ? `You are evaluating a Spanish vocabulary production exercise.
+
+The student was shown the English prompt: "${englishAnswer}"
+The correct Spanish word/phrase: "${spanishTerm}"${sentenceContext}
+Student's answer: "${userAnswer}"
+
+Rate the student's Spanish production on a 0–5 scale:
+5 = Perfect — exact match or an equally valid conjugated/synonym form
+4 = Correct meaning with minor spelling error or accent omission (e.g. "tenia" for "tenía")
+3 = Recognisably correct but significantly misspelled or a weaker synonym
+2 = Incorrect but shows some Spanish knowledge related to the concept
+1 = Incorrect, barely related
+0 = Completely wrong or blank
+
+Be lenient on missing accent marks. Accept synonymous forms if they carry the same meaning.
+Respond ONLY with valid JSON, no extra text:
+{"qualityScore": <integer 0-5>, "feedback": "<one concise encouraging sentence explaining the score>"}`
+    : `You are evaluating a Spanish vocabulary flashcard answer.
 
 Spanish word/phrase: "${spanishTerm}"
 Correct English answer: "${englishAnswer}"${sentenceContext}
@@ -88,6 +107,8 @@ Respond ONLY with valid JSON, no extra text:
     .eq('vocab_term_id', vocabTermId)
     .eq('user_id', user.id)
     .single()
+
+  const isNewCard = !progressRow
 
   const current = progressRow
     ? {
@@ -131,6 +152,7 @@ Respond ONLY with valid JSON, no extra text:
       next_review_at: nextReviewDate,
       last_quality_score: qualityScore,
       last_reviewed_at: now,
+      introduced_at: now,
       total_reviews: 1,
       total_correct: sm2.isCorrect ? 1 : 0,
       ...(isNewlyMastered ? { mastered_at: now } : {}),
@@ -144,5 +166,6 @@ Respond ONLY with valid JSON, no extra text:
     nextReviewAt: nextReviewDate,
     intervalDays: sm2.intervalDays,
     newlyMastered: isNewlyMastered,
+    wasNewCard: isNewCard,
   })
 }

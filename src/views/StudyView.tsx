@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { SparkleContext } from '@/contexts/SparkleContext'
 import { useSound } from '@/hooks/useSound'
 import { CEFR_NOUN_NEXT, CEFR_NOUN_NEXT_LABEL } from '@/data/books'
+import { NEW_CARD_DAILY_CAP } from '@/lib/sm2'
 
 interface SourceSentence {
   es: string
@@ -19,6 +20,7 @@ interface Card {
   source_sentences: SourceSentence[]
   position: number
   vocab_term_id: string
+  isNew: boolean
 }
 
 interface Deck {
@@ -37,6 +39,7 @@ interface EvalResult {
   nextReviewAt: string
   intervalDays: number
   newlyMastered: boolean
+  wasNewCard: boolean
 }
 
 interface Props {
@@ -79,7 +82,17 @@ export function StudyView({ deckId }: Props) {
   // Scoreboard
   const [correct, setCorrect] = useState(0)
   const [incorrect, setIncorrect] = useState(0)
-  const [incorrectCards, setIncorrectCards] = useState<Card[]>([])
+
+  // Learning steps: tracks how many in-session attempts a card has had (by card id)
+  const learningProgress = useRef<Map<string, number>>(new Map())
+  // Requeue throttle: tracks how many times a card has been re-inserted this session
+  const requeueCount = useRef<Map<string, number>>(new Map())
+
+  // Daily new card cap
+  const [newCardsIntroducedToday, setNewCardsIntroducedToday] = useState(0)
+  const [newCardDailyCap, setNewCardDailyCap] = useState(NEW_CARD_DAILY_CAP)
+  const newCardsThisSession = useRef(0)
+  const [showCapBanner, setShowCapBanner] = useState(false)
 
   // Next CEFR level navigation
   const [nextLevelDeckId, setNextLevelDeckId] = useState<string | null>(null)
@@ -107,6 +120,8 @@ export function StudyView({ deckId }: Props) {
         } else {
           setDeck(data.deck)
           setCards(data.cards)
+          setNewCardsIntroducedToday(data.newCardsIntroducedToday ?? 0)
+          setNewCardDailyCap(data.newCardDailyCap ?? NEW_CARD_DAILY_CAP)
           setViewState('studying')
           setTimeout(() => inputRef.current?.focus(), 200)
         }
@@ -165,35 +180,84 @@ export function StudyView({ deckId }: Props) {
         setFlipped(true)
         play('correct')
         if (cardRef.current) triggerBurst(cardRef.current.getBoundingClientRect())
+
+        // Track newly introduced cards toward the daily cap
+        if (result.wasNewCard) {
+          newCardsThisSession.current += 1
+          const totalNew = newCardsIntroducedToday + newCardsThisSession.current
+          if (totalNew >= newCardDailyCap && !showCapBanner) {
+            setShowCapBanner(true)
+          }
+        }
+
+        // Learning steps: re-queue new cards for a second in-session exposure
+        const step = learningProgress.current.get(currentCard.id) ?? -1
+        if (step === -1) {
+          // True first encounter — re-insert after ~5 cards for step 1
+          learningProgress.current.set(currentCard.id, 0)
+          setCards((prev) => {
+            const next = [...prev]
+            const insertAt = Math.min(currentIdx + 5, next.length)
+            next.splice(insertAt, 0, currentCard)
+            return next
+          })
+        } else if (step === 0) {
+          // Passed step 1 — card is graduated, mark it done
+          learningProgress.current.set(currentCard.id, 1)
+        }
       } else {
         setIncorrect((i) => i + 1)
-        setIncorrectCards((prev) => [...prev, currentCard])
         play('wrong')
         setShaking(true)
         setTimeout(() => {
           setShaking(false)
           setFlipped(true)
         }, 450)
+
+        // Auto re-queue: re-insert failed card mid-session (max 2 times)
+        const requeues = requeueCount.current.get(currentCard.id) ?? 0
+        if (requeues < 2) {
+          requeueCount.current.set(currentCard.id, requeues + 1)
+          // Reset learning step on failure
+          const step = learningProgress.current.get(currentCard.id) ?? -1
+          if (step >= 0) learningProgress.current.set(currentCard.id, 0)
+          setCards((prev) => {
+            const next = [...prev]
+            // Insert sooner on failure (3 cards) than on correct learning step (5 cards)
+            const insertAt = Math.min(currentIdx + 3, next.length)
+            next.splice(insertAt, 0, currentCard)
+            return next
+          })
+        }
       }
     } catch {
       setCardState('input')
     }
-  }, [currentCard, session, answer, cardState, triggerBurst, play])
+  }, [currentCard, session, answer, cardState, currentIdx, newCardsIntroducedToday, newCardDailyCap, showCapBanner, triggerBurst, play])
 
   const nextCard = useCallback(() => {
-    if (currentIdx + 1 >= cards.length) {
-      play('complete')
-      setViewState('complete')
-    } else {
-      setCurrentIdx((i) => i + 1)
-      setCardState('input')
-      setAnswer('')
-      setShowSentence(false)
-      setFlipped(false)
-      setEvalResult(null)
-      setTimeout(() => inputRef.current?.focus(), 100)
+    const advance = (fromIdx: number) => {
+      let next = fromIdx + 1
+      // Skip new cards if daily cap is reached
+      const capReached = newCardsIntroducedToday + newCardsThisSession.current >= newCardDailyCap
+      while (capReached && next < cards.length && cards[next]?.isNew) {
+        next++
+      }
+      if (next >= cards.length) {
+        play('complete')
+        setViewState('complete')
+      } else {
+        setCurrentIdx(next)
+        setCardState('input')
+        setAnswer('')
+        setShowSentence(false)
+        setFlipped(false)
+        setEvalResult(null)
+        setTimeout(() => inputRef.current?.focus(), 100)
+      }
     }
-  }, [currentIdx, cards.length, play])
+    advance(currentIdx)
+  }, [currentIdx, cards, newCardsIntroducedToday, newCardDailyCap, play])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -253,28 +317,7 @@ export function StudyView({ deckId }: Props) {
               <div className="text-xs text-white/80 mt-1 font-semibold uppercase tracking-wide">Correct</div>
             </div>
             <div className="text-center">
-              <button
-                onClick={() => {
-                  if (incorrectCards.length === 0) return
-                  setCards(incorrectCards)
-                  setIncorrectCards([])
-                  setCurrentIdx(0)
-                  setCorrect(0)
-                  setIncorrect(0)
-                  setCardState('input')
-                  setAnswer('')
-                  setShowSentence(false)
-                  setFlipped(false)
-                  setEvalResult(null)
-                  setViewState('studying')
-                  setTimeout(() => inputRef.current?.focus(), 200)
-                }}
-                disabled={incorrect === 0}
-                className="text-4xl font-bold text-neon-pink disabled:cursor-default enabled:cursor-pointer enabled:hover:opacity-70 enabled:underline enabled:decoration-dotted transition-opacity"
-                title={incorrect > 0 ? 'Review wrong answers' : undefined}
-              >
-                {incorrect}
-              </button>
+              <div className="text-4xl font-bold text-neon-pink">{incorrect}</div>
               <div className="text-xs text-white/80 mt-1 font-semibold uppercase tracking-wide">Incorrect</div>
             </div>
             <div className="text-center">
@@ -307,8 +350,9 @@ export function StudyView({ deckId }: Props) {
             </button>
             <button
               onClick={() => {
+                learningProgress.current.clear()
+                requeueCount.current.clear()
                 setCards(cards)
-                setIncorrectCards([])
                 setCurrentIdx(0)
                 setCorrect(0)
                 setIncorrect(0)
@@ -419,6 +463,23 @@ export function StudyView({ deckId }: Props) {
         )}
       </div>
 
+      {/* Daily new card cap banner */}
+      {showCapBanner && (
+        <div className="w-full max-w-xl mx-auto flex items-start gap-3 rounded-xl border border-neon-gold/40 bg-neon-gold/10 px-4 py-3 text-sm">
+          <span className="text-neon-gold mt-0.5">⚡</span>
+          <div className="flex-1 text-left">
+            <p className="font-semibold text-neon-gold">Daily new card limit reached ({newCardDailyCap})</p>
+            <p className="text-white/50 text-xs mt-0.5">New cards are being skipped — due cards continue normally.</p>
+          </div>
+          <button
+            onClick={() => setShowCapBanner(false)}
+            className="text-white/30 hover:text-white/60 transition-colors text-xs mt-0.5"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Progress bar */}
       <div className="w-full max-w-xl mx-auto h-1 rounded-full bg-white/10 overflow-hidden">
         <div
@@ -438,6 +499,12 @@ export function StudyView({ deckId }: Props) {
             {/* Front — Spanish prompt */}
             <div className="flip-card-front glass rounded-2xl flex flex-col items-center justify-between p-8">
               <div className="flex-1 flex flex-col items-center justify-center gap-6 w-full">
+                {/* Learning step badge */}
+                {learningProgress.current.get(currentCard?.id) === 0 && (
+                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-neon-blue/20 text-neon-blue border border-neon-blue/30">
+                    Learning — 2nd pass
+                  </span>
+                )}
                 <p className="text-4xl md:text-5xl font-bold text-white text-center leading-tight">
                   {currentCard?.spanish_term}
                 </p>
@@ -505,6 +572,9 @@ export function StudyView({ deckId }: Props) {
                         {evalResult.intervalDays}d
                         {evalResult.newlyMastered && (
                           <span className="ml-2 text-neon-gold">🏆 Mastered!</span>
+                        )}
+                        {!evalResult.newlyMastered && learningProgress.current.get(currentCard?.id) === 1 && (
+                          <span className="ml-2 text-neon-blue">✓ Graduated</span>
                         )}
                       </p>
                     </div>

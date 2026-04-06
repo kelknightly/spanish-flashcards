@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   // Fetch all due card_progress rows, oldest-due first
   const { data: progressRows, error: progressError } = await sb
     .from('card_progress')
-    .select('vocab_term_id, vocabulary_terms(spanish_term)')
+    .select('vocab_term_id, repetitions, vocabulary_terms(spanish_term)')
     .eq('user_id', user.id)
     .lte('next_review_at', today)
     .order('next_review_at', { ascending: true })
@@ -62,6 +62,12 @@ export async function GET(request: NextRequest) {
     const vocab = prog.vocabulary_terms as unknown as { spanish_term: string } | null
     const deck = card.decks as unknown as { name: string } | null
 
+    // Assign direction: cards with < 3 repetitions always show ES→EN (recognition).
+    // Cards with 3+ repetitions get a 50/50 chance of EN→ES (production).
+    const repetitions = (prog as unknown as { repetitions: number }).repetitions ?? 0
+    const direction: 'es-to-en' | 'en-to-es' =
+      repetitions >= 3 && Math.random() < 0.5 ? 'en-to-es' : 'es-to-en'
+
     cards.push({
       id: card.id,
       vocab_term_id: prog.vocab_term_id,
@@ -70,6 +76,7 @@ export async function GET(request: NextRequest) {
       source_sentences: card.source_sentences ?? [],
       deck_id: card.deck_id,
       deck_name: deck?.name ?? '',
+      direction,
     })
   }
 

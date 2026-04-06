@@ -66,6 +66,9 @@ export const SM2_DEFAULTS: SM2State = {
   repetitions: 0,
 }
 
+/** Maximum number of new cards that can be introduced per calendar day. */
+export const NEW_CARD_DAILY_CAP = 20
+
 /** Derive a human-readable difficulty label from SM-2 state */
 export function getDifficultyLabel(state: SM2State): 'New' | 'Hard' | 'Moderate' | 'Easy' {
   if (state.repetitions === 0) return 'New'

@@ -19,6 +19,7 @@ interface ReviewCard {
   source_sentences: SourceSentence[]
   deck_id: string
   deck_name: string
+  direction: 'es-to-en' | 'en-to-es'
 }
 
 interface EvalResult {
@@ -64,7 +65,9 @@ export function ReviewView() {
   // Scoreboard
   const [correct, setCorrect] = useState(0)
   const [incorrect, setIncorrect] = useState(0)
-  const [incorrectCards, setIncorrectCards] = useState<ReviewCard[]>([])
+
+  // Requeue throttle: tracks how many times a card has been re-inserted this session
+  const requeueCount = useRef<Map<string, number>>(new Map())
 
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -114,6 +117,7 @@ export function ReviewView() {
           spanishTerm: currentCard.spanish_term,
           englishAnswer: currentCard.english_answer,
           sourceSentences: currentCard.source_sentences,
+          direction: currentCard.direction,
         }),
       })
       const result: EvalResult = await res.json()
@@ -127,18 +131,29 @@ export function ReviewView() {
         if (cardRef.current) triggerBurst(cardRef.current.getBoundingClientRect())
       } else {
         setIncorrect((i) => i + 1)
-        setIncorrectCards((prev) => [...prev, currentCard])
         play('wrong')
         setShaking(true)
         setTimeout(() => {
           setShaking(false)
           setFlipped(true)
         }, 450)
+
+        // Auto re-queue failed card mid-session (max 2 times)
+        const requeues = requeueCount.current.get(currentCard.vocab_term_id) ?? 0
+        if (requeues < 2) {
+          requeueCount.current.set(currentCard.vocab_term_id, requeues + 1)
+          setCards((prev) => {
+            const next = [...prev]
+            const insertAt = Math.min(currentIdx + 5, next.length)
+            next.splice(insertAt, 0, currentCard)
+            return next
+          })
+        }
       }
     } catch {
       setCardState('input')
     }
-  }, [currentCard, session, answer, cardState, triggerBurst, play])
+  }, [currentCard, session, answer, cardState, currentIdx, triggerBurst, play])
 
   const nextCard = useCallback(() => {
     if (currentIdx + 1 >= cards.length) {
@@ -235,28 +250,7 @@ export function ReviewView() {
               <div className="text-xs text-white/50 mt-1">Correct</div>
             </div>
             <div className="text-center">
-              <button
-                onClick={() => {
-                  if (incorrectCards.length === 0) return
-                  setCards(incorrectCards)
-                  setIncorrectCards([])
-                  setCurrentIdx(0)
-                  setCorrect(0)
-                  setIncorrect(0)
-                  setCardState('input')
-                  setAnswer('')
-                  setShowSentence(false)
-                  setFlipped(false)
-                  setEvalResult(null)
-                  setViewState('reviewing')
-                  setTimeout(() => inputRef.current?.focus(), 200)
-                }}
-                disabled={incorrect === 0}
-                className="text-4xl font-bold text-neon-pink disabled:cursor-default enabled:cursor-pointer enabled:hover:opacity-70 enabled:underline enabled:decoration-dotted transition-opacity"
-                title={incorrect > 0 ? 'Review wrong answers' : undefined}
-              >
-                {incorrect}
-              </button>
+              <div className="text-4xl font-bold text-neon-pink">{incorrect}</div>
               <div className="text-xs text-white/50 mt-1">Incorrect</div>
             </div>
             <div className="text-center">
@@ -337,20 +331,29 @@ export function ReviewView() {
           style={{ height: 'clamp(320px, 50vh, 480px)' }}
         >
           <div className={`flip-card-inner ${flipped ? 'flipped' : ''}`}>
-            {/* Front — Spanish prompt */}
+            {/* Front — question prompt (direction-aware) */}
             <div className="flip-card-front glass rounded-2xl flex flex-col items-center justify-between p-8">
               <div className="flex-1 flex flex-col items-center justify-center gap-6 w-full">
-                {/* Deck context label */}
-                <p className="text-xs text-white/30 truncate max-w-xs text-center">
-                  {currentCard?.deck_name}
-                </p>
+                {/* Deck context label + direction pill */}
+                <div className="flex flex-col items-center gap-1.5">
+                  <p className="text-xs text-white/30 truncate max-w-xs text-center">
+                    {currentCard?.deck_name}
+                  </p>
+                  {currentCard?.direction === 'en-to-es' && (
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-neon-gold/20 text-neon-gold border border-neon-gold/30">
+                      Produce Spanish
+                    </span>
+                  )}
+                </div>
 
                 <p className="text-4xl md:text-5xl font-bold text-white text-center leading-tight">
-                  {currentCard?.spanish_term}
+                  {currentCard?.direction === 'en-to-es'
+                    ? currentCard?.english_answer
+                    : currentCard?.spanish_term}
                 </p>
 
-                {/* Source sentence reveal */}
-                {currentCard?.source_sentences?.length > 0 && (
+                {/* Source sentence reveal — only for ES→EN (hint not useful for production) */}
+                {currentCard?.direction !== 'en-to-es' && currentCard?.source_sentences?.length > 0 && (
                   <div className="text-center">
                     {showSentence ? (
                       <div className="text-sm text-white/60 italic max-w-sm">
@@ -381,7 +384,11 @@ export function ReviewView() {
                   onChange={(e) => setAnswer(e.target.value)}
                   onKeyDown={handleKeyDown}
                   disabled={cardState !== 'input'}
-                  placeholder="Type the English translation…"
+                  placeholder={
+                    currentCard?.direction === 'en-to-es'
+                      ? 'Type the Spanish…'
+                      : 'Type the English translation…'
+                  }
                   rows={2}
                   className="w-full resize-none rounded-xl bg-white/5 border border-white/15 px-4 py-3 text-white placeholder:text-white/25 focus:outline-none focus:border-neon-purple/60 disabled:opacity-50 transition-colors"
                 />
@@ -426,7 +433,9 @@ export function ReviewView() {
                   <div className="mb-4">
                     <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Answer</p>
                     <p className="text-xl font-semibold text-white">
-                      {currentCard?.english_answer}
+                      {currentCard?.direction === 'en-to-es'
+                        ? currentCard?.spanish_term
+                        : currentCard?.english_answer}
                     </p>
                   </div>
 
