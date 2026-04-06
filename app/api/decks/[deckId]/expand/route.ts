@@ -230,13 +230,14 @@ function buildExtractionPrompt(
 
   const typeInstructions: Record<string, string> = {
     'nouns': 'Extract exactly 10 common nouns (sustantivos) that appear in or are directly relevant to the text. Include the article (el/la) with each noun.',
-    'verbs-present': 'Extract exactly 10 verbs conjugated in the present tense (presente de indicativo) as they appear in the text.',
-    'verbs-preterite': 'Extract exactly 10 verbs conjugated in the preterite past tense (pretérito indefinido) as they appear in the text.',
-    'verbs-imperfect': 'Extract exactly 10 verbs conjugated in the imperfect past tense (pretérito imperfecto) as they appear in the text.',
+    'verbs-present': 'Extract exactly 10 verbs conjugated in the present tense (presente de indicativo) as they appear in the text. If a verb appears with attached clitic pronouns (e.g. "dímelo", "cuéntame"), card the full combined form exactly as written — do NOT split off the pronouns.',
+    'verbs-preterite': 'Extract exactly 10 verbs conjugated in the preterite past tense (pretérito indefinido) as they appear in the text. If a verb appears with attached clitic pronouns (e.g. "díjomelo"), card the full combined form exactly as written.',
+    'verbs-imperfect': 'Extract exactly 10 verbs conjugated in the imperfect past tense (pretérito imperfecto) as they appear in the text. If a verb appears with attached clitic pronouns, card the full combined form exactly as written.',
     'verbs-future': 'Extract exactly 10 verbs conjugated in the future tense (futuro simple) as they appear in, or that are thematically relevant to, the text.',
     'verbs-conditional': 'Extract exactly 10 verbs conjugated in the conditional tense (condicional simple) as they appear in, or that are thematically relevant to, the text.',
-    'verbs-imperative': 'Extract exactly 10 verbs conjugated in the imperative mood (imperativo) as they appear in, or that are thematically relevant to, the text.',
+    'verbs-imperative': 'Extract exactly 10 verbs conjugated in the imperative mood (imperativo) as they appear in, or that are thematically relevant to, the text. Imperative forms very commonly have clitic pronouns attached (e.g. "pásamelo", "dámelo", "cuéntame", "llévatelo") — when this is the case, ALWAYS card the full composite form exactly as it appears in the text. Do NOT card just the bare imperative (e.g. do not card "pasa" when "pásamelo" appears).',
     'verbs-subjunctive': 'Extract exactly 10 verbs conjugated in the subjunctive mood (subjuntivo) as they appear in, or that are thematically relevant to, the text.',
+    'pronoun-composites': 'Extract exactly 10 composite pronoun constructions as they appear in the text — these are verb forms with one or two clitic pronouns attached (e.g. "pásamelo", "dáselo", "cuéntamelo", "llévatelo"). Card the full composite form exactly as written. The English translation should explain the verb meaning AND the pronouns (e.g. "pásamelo" → "pass it to me").',
   }
 
   const instruction = typeInstructions[subcategory] ?? `Extract exactly 10 ${label} from the text.`

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BookOpen, MessageSquare, RotateCcw, Volume2, VolumeX, Sparkles, LogOut } from 'lucide-react'
+import { BookOpen, MessageSquare, RotateCcw, BookText, Volume2, VolumeX, Sparkles, LogOut } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useStreak } from '@/hooks/useStreak'
 import { useSound } from '@/hooks/useSound'
@@ -10,9 +10,10 @@ import { useSparkle } from '@/contexts/SparkleContext'
 import { cn } from '@/lib/utils'
 
 const NAV_ITEMS = [
-  { href: '/decks',  label: 'Decks',  icon: BookOpen },
+  { href: '/decks',  label: 'Decks',   icon: BookOpen },
   { href: '/chat',   label: 'New Deck', icon: MessageSquare },
-  { href: '/review', label: 'Review',  icon: RotateCcw },
+  { href: '/review', label: 'Review',   icon: RotateCcw },
+  { href: '/reader', label: 'Reader',   icon: BookText },
 ]
 
 export function Shell({ children }: { children: React.ReactNode }) {
@@ -60,24 +61,24 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <button
             onClick={toggle}
             title={enabled ? 'Mute sounds' : 'Enable sounds'}
-            className="rounded-lg p-1.5 text-white/40 transition-colors hover:bg-white/10 hover:text-white/80"
+            className="rounded-xl p-2 text-neon-pink transition-colors hover:bg-neon-pink/20"
           >
-            {enabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+            {enabled ? <Volume2 size={22} strokeWidth={2.5} /> : <VolumeX size={22} strokeWidth={2.5} />}
           </button>
           <button
             onClick={togglePaused}
             title={paused ? 'Enable glitter' : 'Pause glitter'}
-            className="rounded-lg p-1.5 transition-colors hover:bg-white/10 hover:text-white/80"
-            style={{ color: paused ? 'rgb(255 255 255 / 0.2)' : 'rgb(255 255 255 / 0.4)' }}
+            className="rounded-xl p-2 transition-colors hover:bg-neon-pink/20"
+            style={{ color: paused ? 'rgb(255 255 255 / 0.2)' : 'var(--neon-pink, #ff2d9b)' }}
           >
-            <Sparkles size={16} />
+            <Sparkles size={22} strokeWidth={2.5} />
           </button>
           <button
             onClick={() => signOut()}
             title="Sign out"
-            className="rounded-lg p-1.5 text-white/40 transition-colors hover:bg-white/10 hover:text-white/80"
+            className="rounded-xl p-2 text-neon-pink transition-colors hover:bg-neon-pink/20"
           >
-            <LogOut size={16} />
+            <LogOut size={22} strokeWidth={2.5} />
           </button>
         </div>
       </header>

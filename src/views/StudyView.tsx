@@ -4,6 +4,7 @@ import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { SparkleContext } from '@/contexts/SparkleContext'
+import { useSound } from '@/hooks/useSound'
 import { CEFR_NOUN_NEXT, CEFR_NOUN_NEXT_LABEL } from '@/data/books'
 
 interface SourceSentence {
@@ -42,6 +43,20 @@ interface Props {
   deckId: string
 }
 
+function highlightTerm(sentence: string, term: string) {
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const parts = sentence.split(new RegExp(`(${escaped})`, 'gi'))
+  return parts.map((part, i) =>
+    i % 2 === 1 ? (
+      <span key={i} className="underline decoration-neon-pink decoration-2">
+        {part}
+      </span>
+    ) : (
+      part
+    )
+  )
+}
+
 export function StudyView({ deckId }: Props) {
   const { session } = useAuth()
   const router = useRouter()
@@ -69,9 +84,14 @@ export function StudyView({ deckId }: Props) {
   // Next CEFR level navigation
   const [nextLevelDeckId, setNextLevelDeckId] = useState<string | null>(null)
 
+  // Augment deck
+  const [augmenting, setAugmenting] = useState(false)
+  const [augmentMsg, setAugmentMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const { triggerBurst } = useContext(SparkleContext)
+  const { play } = useSound()
 
   // Load deck
   useEffect(() => {
@@ -143,10 +163,12 @@ export function StudyView({ deckId }: Props) {
       if (result.isCorrect) {
         setCorrect((c) => c + 1)
         setFlipped(true)
+        play('correct')
         if (cardRef.current) triggerBurst(cardRef.current.getBoundingClientRect())
       } else {
         setIncorrect((i) => i + 1)
         setIncorrectCards((prev) => [...prev, currentCard])
+        play('wrong')
         setShaking(true)
         setTimeout(() => {
           setShaking(false)
@@ -301,6 +323,44 @@ export function StudyView({ deckId }: Props) {
             </button>
           </div>
 
+          {/* Add 10 more cards */}
+          {deck?.book_number && deck?.chapter_number && deck?.subcategory && (
+            <div className="mt-5 pt-5 border-t border-white/10">
+              <button
+                onClick={async () => {
+                  if (!session || augmenting) return
+                  setAugmenting(true)
+                  setAugmentMsg(null)
+                  try {
+                    const res = await fetch(`/api/decks/${deckId}/augment`, {
+                      method: 'POST',
+                      headers: { Authorization: `Bearer ${session.access_token}` },
+                    })
+                    const data = await res.json()
+                    if (data.addedCount) {
+                      setAugmentMsg({ type: 'success', text: `Added ${data.addedCount} new cards to this deck.` })
+                    } else {
+                      setAugmentMsg({ type: 'error', text: data.error ?? 'Could not add more cards.' })
+                    }
+                  } catch {
+                    setAugmentMsg({ type: 'error', text: 'Failed to add more cards.' })
+                  } finally {
+                    setAugmenting(false)
+                  }
+                }}
+                disabled={augmenting}
+                className="w-full rounded-lg border border-neon-blue/50 text-neon-blue py-2 text-sm font-semibold hover:bg-neon-blue/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {augmenting ? 'Adding cards…' : '+ Add 10 More Cards'}
+              </button>
+              {augmentMsg && (
+                <p className={`mt-2 text-xs text-center ${augmentMsg.type === 'success' ? 'text-neon-green' : 'text-red-400'}`}>
+                  {augmentMsg.text}
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Continue to next CEFR noun level */}
           {nextLevelDeckId && deck?.subcategory && CEFR_NOUN_NEXT_LABEL[deck.subcategory] && (
             <div className="mt-6 pt-5 border-t border-white/10">
@@ -384,7 +444,7 @@ export function StudyView({ deckId }: Props) {
                   <div className="text-center">
                     {showSentence ? (
                       <div className="text-sm text-white/60 italic max-w-sm">
-                        <p className="text-neon-blue/80">{currentCard.source_sentences[0].es}</p>
+                        <p className="text-neon-blue/80">{highlightTerm(currentCard.source_sentences[0].es, currentCard.spanish_term)}</p>
                       </div>
                     ) : (
                       <button
@@ -463,8 +523,8 @@ export function StudyView({ deckId }: Props) {
                       </p>
                       {currentCard.source_sentences.map((s, i) => (
                         <div key={i} className="mb-2">
-                          <p className="text-sm text-neon-blue/80 italic">{s.es}</p>
-                          <p className="text-xs text-white/40">{s.en}</p>
+                          <p className="text-sm text-neon-blue/80 italic">{highlightTerm(s.es, currentCard.spanish_term)}</p>
+                          <p className="text-xs text-white/40">{highlightTerm(s.en, currentCard.english_answer)}</p>
                         </div>
                       ))}
                     </div>

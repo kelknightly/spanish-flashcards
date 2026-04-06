@@ -112,7 +112,7 @@ const TYPE_INSTRUCTIONS: Record<string, string> = {
   'adjectives':
     'Extract exactly 10 adjectives (adjetivos) that appear in or are directly relevant to the text. Provide the masculine singular form as the headword.',
   'pronoun-composites':
-    'Extract exactly 10 examples of composite pronoun usage from the text — verbs combined with one or two object pronouns (e.g. "pásale", "pásame", "dímelo", "dáselo"). If the text contains fewer than 10, generate thematically appropriate examples. For each item, "spanish" should be the composite form (e.g. "pásame el libro") and "english" should be its translation.',
+    'Extract exactly 10 verb+clitic composite forms from the text — these are conjugated verbs with one or two object pronouns directly attached (e.g. "dímelo", "pásamelo", "dáselo", "cuéntame", "llévatelo"). The "spanish" field must be ONLY the composite verb form itself (e.g. "dímelo"), never a full sentence or phrase. The "english" field should translate both the verb and the pronouns (e.g. "dímelo" → "tell it to me"). If the text contains fewer than 10 such forms, use the closest thematically relevant forms from the chapter.',
 }
 
 function buildPrompt(subcategory: string, chapterText: string, excludeTerms: Set<string> = new Set()): string {
