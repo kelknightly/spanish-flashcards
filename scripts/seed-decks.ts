@@ -331,9 +331,9 @@ for (const book of books) {
     const orderedDeckTypes = [
       ...NOUN_SUBCATEGORY_ORDER
         .map((sub) => DECK_TYPES.find((t) => t.subcategory === sub))
-        .filter(Boolean),
+        .filter((t): t is NonNullable<typeof t> => t != null),
       ...DECK_TYPES.filter((t) => !nounSubcategorySet.has(t.subcategory)),
-    ] as typeof DECK_TYPES
+    ] as unknown as typeof DECK_TYPES
 
     const chapterUsedNounTerms = new Set<string>()
 
