@@ -93,7 +93,7 @@ Single chapter:
 npm run chapter:seed -- --user-id c49bf071-9572-44c2-b8c8-c40a33984e79 --book {N} --chapters {N}
 ```
 
-The seed script is idempotent — safe to re-run. Confirm output shows 8 decks created per chapter (nouns + 7 verb tenses), 10 cards each.
+The seed script is idempotent — safe to re-run. Confirm output shows 11 decks created per chapter (nouns + 7 verb tenses + adjectives + pronoun-composites + general), 10 cards each.
 
 ## What gets created per chapter
 
@@ -107,6 +107,9 @@ The seed script is idempotent — safe to re-run. Confirm output shows 8 decks c
 | verbs-conditional | 10 conditional forms |
 | verbs-imperative | 10 imperative forms |
 | verbs-subjunctive | 10 subjunctive forms |
+| adjectives | 10 adjectives (masculine singular headword) |
+| pronoun-composites | 10 composite pronoun forms (e.g. pásame, dímelo) |
+| general | 10 general vocabulary items |
 
 ## Notes on image resolution
 

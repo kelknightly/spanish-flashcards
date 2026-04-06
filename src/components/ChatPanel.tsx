@@ -248,6 +248,9 @@ export function ChatPanel() {
           deckName: extractedDeck.deckName,
           bookNumber: extractedDeck.bookNumber,
           chapterNumber: extractedDeck.chapterNumber,
+          ...(!extractedDeck.bookNumber && !extractedDeck.chapterNumber
+            ? { subcategory: 'general', category: 'general' }
+            : {}),
           cards: extractedDeck.cards,
           chatSessionId: sessionId,
         }),

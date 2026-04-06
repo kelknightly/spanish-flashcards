@@ -26,7 +26,7 @@ export async function GET(
 
   const { data: deck, error: deckError } = await sb
     .from('decks')
-    .select('id, name, book_number, chapter_number, category')
+    .select('id, name, book_number, chapter_number, category, subcategory')
     .eq('id', deckId)
     .eq('user_id', user.id)
     .single()

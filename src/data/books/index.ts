@@ -32,15 +32,36 @@ export const books: Book[] = [
 ]
 
 export const DECK_TYPES = [
-  { subcategory: 'nouns',             label: 'Frequent Nouns',              category: 'nouns'  },
-  { subcategory: 'verbs-present',     label: 'Present Tense Verbs',         category: 'verbs'  },
-  { subcategory: 'verbs-preterite',   label: 'Past Tense Verbs (Preterite)', category: 'verbs' },
-  { subcategory: 'verbs-imperfect',   label: 'Past Tense Verbs (Imperfect)', category: 'verbs' },
-  { subcategory: 'verbs-future',      label: 'Future Tense Verbs',           category: 'verbs' },
-  { subcategory: 'verbs-conditional', label: 'Conditional Verbs',            category: 'verbs' },
-  { subcategory: 'verbs-imperative',  label: 'Imperative Verbs',             category: 'verbs' },
-  { subcategory: 'verbs-subjunctive', label: 'Subjunctive Verbs',            category: 'verbs' },
+  { subcategory: 'nouns',               label: 'Frequent Nouns',              category: 'nouns'      },
+  { subcategory: 'nouns-a1',            label: 'A1 Nouns',                    category: 'nouns'      },
+  { subcategory: 'nouns-a2',            label: 'A2 Nouns',                    category: 'nouns'      },
+  { subcategory: 'nouns-b1',            label: 'B1 Nouns',                    category: 'nouns'      },
+  { subcategory: 'nouns-b2',            label: 'B2 Nouns',                    category: 'nouns'      },
+  { subcategory: 'verbs-present',       label: 'Present Tense Verbs',         category: 'verbs'      },
+  { subcategory: 'verbs-preterite',     label: 'Past Tense Verbs (Preterite)', category: 'verbs'     },
+  { subcategory: 'verbs-imperfect',     label: 'Past Tense Verbs (Imperfect)', category: 'verbs'     },
+  { subcategory: 'verbs-future',        label: 'Future Tense Verbs',           category: 'verbs'     },
+  { subcategory: 'verbs-conditional',   label: 'Conditional Verbs',            category: 'verbs'     },
+  { subcategory: 'verbs-imperative',    label: 'Imperative Verbs',             category: 'verbs'     },
+  { subcategory: 'verbs-subjunctive',   label: 'Subjunctive Verbs',            category: 'verbs'     },
+  { subcategory: 'adjectives',          label: 'Adjectives',                   category: 'adjectives' },
+  { subcategory: 'pronoun-composites',  label: 'Composite Pronoun Usage',      category: 'grammar'   },
+  { subcategory: 'general',             label: 'General',                      category: 'general'   },
 ] as const
+
+/** CEFR noun level progression: subcategory → next subcategory */
+export const CEFR_NOUN_NEXT: Record<string, string> = {
+  'nouns-a1': 'nouns-a2',
+  'nouns-a2': 'nouns-b1',
+  'nouns-b1': 'nouns-b2',
+}
+
+/** Label to show in "Continue to …" prompts for the next CEFR level */
+export const CEFR_NOUN_NEXT_LABEL: Record<string, string> = {
+  'nouns-a1': 'A2 Nouns',
+  'nouns-a2': 'B1 Nouns',
+  'nouns-b1': 'B2 Nouns',
+}
 
 export type DeckSubcategory = (typeof DECK_TYPES)[number]['subcategory']
 

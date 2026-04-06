@@ -5,6 +5,14 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { DECK_TYPES, getChapterMeta } from '@/data/books'
 
+/** CEFR level badge colours keyed by subcategory */
+const CEFR_BADGE: Record<string, { label: string; className: string }> = {
+  'nouns-a1': { label: 'A1', className: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' },
+  'nouns-a2': { label: 'A2', className: 'bg-teal-500/20 text-teal-300 border-teal-500/40' },
+  'nouns-b1': { label: 'B1', className: 'bg-sky-500/20 text-sky-300 border-sky-500/40' },
+  'nouns-b2': { label: 'B2', className: 'bg-violet-500/20 text-violet-300 border-violet-500/40' },
+}
+
 interface DeckInfo {
   id: string
   name: string
@@ -118,9 +126,16 @@ export function ChapterDecksPanel({ bookNumber, chapterNumber }: Props) {
                   <p className="text-xs text-white/40 uppercase tracking-wider font-medium">
                     {deckType.category}
                   </p>
-                  <p className="text-sm font-semibold text-white leading-snug mt-0.5">
-                    {deckType.label}
-                  </p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <p className="text-sm font-semibold text-white leading-snug">
+                      {deckType.label}
+                    </p>
+                    {CEFR_BADGE[deckType.subcategory] && (
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${CEFR_BADGE[deckType.subcategory].className}`}>
+                        CEFR {CEFR_BADGE[deckType.subcategory].label}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 {deck && deck.version > 1 && (
                   <span className="shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-neon-purple/20 text-neon-purple border border-neon-purple/30">
@@ -134,9 +149,8 @@ export function ChapterDecksPanel({ bookNumber, chapterNumber }: Props) {
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs text-white/40">
                     <span>
-                      {deck.mastered_count > 0
-                        ? `${deck.mastered_count}/${deck.card_count} mastered`
-                        : `${deck.reviewed_count}/${deck.card_count} reviewed`}
+                      {deck.reviewed_count}/{deck.card_count} reviewed
+                      {deck.mastered_count > 0 && ` · ${deck.mastered_count} mastered`}
                     </span>
                     {allMastered && (
                       <span className="text-neon-gold">🏆 All mastered</span>

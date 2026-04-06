@@ -4,6 +4,7 @@ import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { SparkleContext } from '@/contexts/SparkleContext'
+import { CEFR_NOUN_NEXT, CEFR_NOUN_NEXT_LABEL } from '@/data/books'
 
 interface SourceSentence {
   es: string
@@ -25,6 +26,7 @@ interface Deck {
   book_number: number | null
   chapter_number: number | null
   category: string | null
+  subcategory: string | null
 }
 
 interface EvalResult {
@@ -62,6 +64,10 @@ export function StudyView({ deckId }: Props) {
   // Scoreboard
   const [correct, setCorrect] = useState(0)
   const [incorrect, setIncorrect] = useState(0)
+  const [incorrectCards, setIncorrectCards] = useState<Card[]>([])
+
+  // Next CEFR level navigation
+  const [nextLevelDeckId, setNextLevelDeckId] = useState<string | null>(null)
 
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -90,6 +96,24 @@ export function StudyView({ deckId }: Props) {
         setViewState('error')
       })
   }, [deckId, session])
+
+  // When the session completes, look up the next CEFR level deck (if applicable)
+  useEffect(() => {
+    if (viewState !== 'complete' || !session || !deck) return
+    const nextSub = deck.subcategory ? CEFR_NOUN_NEXT[deck.subcategory] : null
+    if (!nextSub || !deck.book_number || !deck.chapter_number) return
+    fetch(`/api/decks?book=${deck.book_number}&chapter=${deck.chapter_number}`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        const next = (data.decks ?? []).find(
+          (d: { subcategory: string | null; id: string }) => d.subcategory === nextSub
+        )
+        if (next) setNextLevelDeckId(next.id)
+      })
+      .catch(() => { /* silently ignore */ })
+  }, [viewState, deck, session])
 
   const currentCard = cards[currentIdx]
 
@@ -122,11 +146,11 @@ export function StudyView({ deckId }: Props) {
         if (cardRef.current) triggerBurst(cardRef.current.getBoundingClientRect())
       } else {
         setIncorrect((i) => i + 1)
+        setIncorrectCards((prev) => [...prev, currentCard])
         setShaking(true)
         setTimeout(() => {
           setShaking(false)
           setFlipped(true)
-          if (cardRef.current) triggerBurst(cardRef.current.getBoundingClientRect())
         }, 450)
       }
     } catch {
@@ -206,7 +230,28 @@ export function StudyView({ deckId }: Props) {
               <div className="text-xs text-white/50 mt-1">Correct</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold text-neon-pink">{incorrect}</div>
+              <button
+                onClick={() => {
+                  if (incorrectCards.length === 0) return
+                  setCards(incorrectCards)
+                  setIncorrectCards([])
+                  setCurrentIdx(0)
+                  setCorrect(0)
+                  setIncorrect(0)
+                  setCardState('input')
+                  setAnswer('')
+                  setShowSentence(false)
+                  setFlipped(false)
+                  setEvalResult(null)
+                  setViewState('studying')
+                  setTimeout(() => inputRef.current?.focus(), 200)
+                }}
+                disabled={incorrect === 0}
+                className="text-4xl font-bold text-neon-pink disabled:cursor-default enabled:cursor-pointer enabled:hover:opacity-70 enabled:underline enabled:decoration-dotted transition-opacity"
+                title={incorrect > 0 ? 'Review wrong answers' : undefined}
+              >
+                {incorrect}
+              </button>
               <div className="text-xs text-white/50 mt-1">Incorrect</div>
             </div>
             <div className="text-center">
@@ -225,13 +270,20 @@ export function StudyView({ deckId }: Props) {
 
           <div className="flex gap-3 justify-center">
             <button
-              onClick={() => router.push('/decks')}
+              onClick={() => {
+                const b = deck?.book_number
+                const c = deck?.chapter_number
+                if (b && c) router.push(`/decks?view=chapter&book=${b}&chapter=${c}`)
+                else router.push('/decks')
+              }}
               className="rounded-lg border border-white/20 px-4 py-2 text-sm text-white/70 hover:text-white hover:border-white/40 transition-colors"
             >
               All Decks
             </button>
             <button
               onClick={() => {
+                setCards(cards)
+                setIncorrectCards([])
                 setCurrentIdx(0)
                 setCorrect(0)
                 setIncorrect(0)
@@ -248,6 +300,19 @@ export function StudyView({ deckId }: Props) {
               Study Again
             </button>
           </div>
+
+          {/* Continue to next CEFR noun level */}
+          {nextLevelDeckId && deck?.subcategory && CEFR_NOUN_NEXT_LABEL[deck.subcategory] && (
+            <div className="mt-6 pt-5 border-t border-white/10">
+              <p className="text-xs text-white/40 mb-2">Ready for the next level?</p>
+              <button
+                onClick={() => router.push(`/decks/${nextLevelDeckId}`)}
+                className="w-full rounded-lg border border-neon-gold/50 text-neon-gold py-2 text-sm font-semibold hover:bg-neon-gold/10 transition-colors"
+              >
+                Continue to {CEFR_NOUN_NEXT_LABEL[deck.subcategory]} →
+              </button>
+            </div>
+          )}
         </div>
       </div>
     )

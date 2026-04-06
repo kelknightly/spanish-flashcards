@@ -45,10 +45,11 @@ export function TypeBrowseView() {
   }
 
   // Group by subcategory, for each subcategory sort by book + chapter
+  // Decks with null subcategory are treated as 'general'
   const grouped = new Map<string, DeckInfo[]>()
   for (const deckType of DECK_TYPES) {
     const matching = decks
-      .filter((d) => d.subcategory === deckType.subcategory)
+      .filter((d) => (d.subcategory ?? 'general') === deckType.subcategory)
       .sort((a, b) => {
         if ((a.book_number ?? 0) !== (b.book_number ?? 0)) {
           return (a.book_number ?? 0) - (b.book_number ?? 0)
@@ -117,6 +118,7 @@ export function TypeBrowseView() {
                   ) : (
                     typeDecks.map((deck) => {
                       const book = deck.book_number ? getBook(deck.book_number) : null
+                      const isGeneral = deckType.subcategory === 'general'
                       const allMastered =
                         deck.card_count > 0 && deck.mastered_count >= deck.card_count
                       const pct = deck.card_count
@@ -130,15 +132,23 @@ export function TypeBrowseView() {
                         >
                           {/* Chapter label */}
                           <div className="min-w-[8rem]">
-                            <p className="text-xs text-white/40 font-medium">
-                              Bk {deck.book_number} · Ch {deck.chapter_number}
-                              {deck.version > 1 && (
-                                <span className="ml-1 text-neon-purple">v{deck.version}</span>
-                              )}
-                            </p>
-                            <p className="text-xs text-white/60 truncate max-w-[10rem]" title={book?.titleEs}>
-                              {book?.titleEs ?? ''}
-                            </p>
+                            {isGeneral ? (
+                              <p className="text-xs text-white/70 font-medium truncate max-w-[10rem]" title={deck.name}>
+                                {deck.name}
+                              </p>
+                            ) : (
+                              <>
+                                <p className="text-xs text-white/40 font-medium">
+                                  Bk {deck.book_number} · Ch {deck.chapter_number}
+                                  {deck.version > 1 && (
+                                    <span className="ml-1 text-neon-purple">v{deck.version}</span>
+                                  )}
+                                </p>
+                                <p className="text-xs text-white/60 truncate max-w-[10rem]" title={book?.titleEs}>
+                                  {book?.titleEs ?? ''}
+                                </p>
+                              </>
+                            )}
                           </div>
 
                           {/* Mastery bar */}

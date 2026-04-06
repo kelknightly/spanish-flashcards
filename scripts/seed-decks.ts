@@ -66,6 +66,9 @@ if (chaptersFilterIdx !== -1) {
   CHAPTER_MAX = parts.length > 1 ? parts[1] : parts[0]
 }
 
+const subcategoryFilterIdx = args.indexOf('--subcategory')
+const SUBCATEGORY_FILTER = subcategoryFilterIdx !== -1 ? args[subcategoryFilterIdx + 1] : null
+
 // ── Clients ────────────────────────────────────────────────────────────────
 
 const sb = createClient(supabaseUrl, serviceRoleKey, {
@@ -84,6 +87,14 @@ const model = genAI.getGenerativeModel({
 const TYPE_INSTRUCTIONS: Record<string, string> = {
   'nouns':
     'Extract exactly 10 common nouns (sustantivos) that appear in or are directly relevant to the text. Include the article (el/la) with each noun.',
+  'nouns-a1':
+    'Extract exactly 10 nouns at CEFR A1 level that appear in the text. A1 nouns are the most basic, everyday words (e.g. body parts, family, colours, numbers, simple objects). Include the article (el/la) with each noun. All nouns must appear in the text.',
+  'nouns-a2':
+    'Extract exactly 10 nouns at CEFR A2 level that appear in the text. A2 nouns are elementary vocabulary beyond the very basics — familiar objects, routine actions, simple environments (house, school, town). Include the article (el/la) with each noun. All nouns must appear in the text.',
+  'nouns-b1':
+    'Extract exactly 10 nouns at CEFR B1 level that appear in the text. B1 nouns go beyond everyday basics — intermediate vocabulary such as emotions, places, social concepts, and concrete objects that require some learning. Include the article (el/la) with each noun. All nouns must appear in the text.',
+  'nouns-b2':
+    'Extract exactly 10 nouns at CEFR B2 level that appear in the text. B2 nouns are upper-intermediate: abstract ideas, nuanced feelings, literary or topic-specific terms. Include the article (el/la) with each noun. All nouns must appear in the text.',
   'verbs-present':
     'Extract exactly 10 verbs conjugated in the present tense (presente de indicativo) as they appear in the text.',
   'verbs-preterite':
@@ -98,6 +109,10 @@ const TYPE_INSTRUCTIONS: Record<string, string> = {
     'Extract exactly 10 verbs conjugated in the imperative mood (imperativo) as they appear in, or that are thematically relevant to, the text.',
   'verbs-subjunctive':
     'Extract exactly 10 verbs conjugated in the subjunctive mood (subjuntivo) as they appear in, or that are thematically relevant to, the text.',
+  'adjectives':
+    'Extract exactly 10 adjectives (adjetivos) that appear in or are directly relevant to the text. Provide the masculine singular form as the headword.',
+  'pronoun-composites':
+    'Extract exactly 10 examples of composite pronoun usage from the text — verbs combined with one or two object pronouns (e.g. "pásale", "pásame", "dímelo", "dáselo"). If the text contains fewer than 10, generate thematically appropriate examples. For each item, "spanish" should be the composite form (e.g. "pásame el libro") and "english" should be its translation.',
 }
 
 function buildPrompt(subcategory: string, chapterText: string): string {
@@ -165,7 +180,7 @@ async function seedChapterDeck(
   chapterText: string,
 ): Promise<void> {
   const deckName = buildDeckName(bookNumber, chapterNumber, subcategory, 1)
-  const category = subcategory === 'nouns' ? 'nouns' : 'verbs'
+  const category = DECK_TYPES.find((t) => t.subcategory === subcategory)?.category ?? 'general'
 
   // Idempotency check
   const { data: existing } = await sb
@@ -270,6 +285,7 @@ for (const book of books) {
     console.log(`\n📖  Book ${book.bookNumber}, Chapter ${chapter.number}: ${chapter.titleEs}`)
 
     for (const deckType of DECK_TYPES) {
+      if (SUBCATEGORY_FILTER !== null && deckType.subcategory !== SUBCATEGORY_FILTER) continue
       await seedChapterDeck(
         book.bookNumber,
         chapter.number,
