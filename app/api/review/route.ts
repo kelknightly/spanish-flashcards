@@ -59,8 +59,8 @@ export async function GET(request: NextRequest) {
     if (!card) continue
     seen.add(prog.vocab_term_id)
 
-    const vocab = (prog.vocabulary_terms as unknown as { spanish_term: string }[])?.[0]
-    const deck = (card.decks as unknown as { name: string }[])?.[0]
+    const vocab = prog.vocabulary_terms as unknown as { spanish_term: string } | null
+    const deck = card.decks as unknown as { name: string } | null
 
     cards.push({
       id: card.id,
