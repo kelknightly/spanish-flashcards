@@ -182,6 +182,7 @@ export function StudyView({ deckId }: Props) {
 
   const nextCard = useCallback(() => {
     if (currentIdx + 1 >= cards.length) {
+      play('complete')
       setViewState('complete')
     } else {
       setCurrentIdx((i) => i + 1)
@@ -192,7 +193,7 @@ export function StudyView({ deckId }: Props) {
       setEvalResult(null)
       setTimeout(() => inputRef.current?.focus(), 100)
     }
-  }, [currentIdx, cards.length])
+  }, [currentIdx, cards.length, play])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
