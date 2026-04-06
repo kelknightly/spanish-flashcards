@@ -115,14 +115,18 @@ const TYPE_INSTRUCTIONS: Record<string, string> = {
     'Extract exactly 10 examples of composite pronoun usage from the text — verbs combined with one or two object pronouns (e.g. "pásale", "pásame", "dímelo", "dáselo"). If the text contains fewer than 10, generate thematically appropriate examples. For each item, "spanish" should be the composite form (e.g. "pásame el libro") and "english" should be its translation.',
 }
 
-function buildPrompt(subcategory: string, chapterText: string): string {
+function buildPrompt(subcategory: string, chapterText: string, excludeTerms: Set<string> = new Set()): string {
   const instruction =
     TYPE_INSTRUCTIONS[subcategory] ??
     `Extract exactly 10 items of category "${subcategory}" from the text.`
 
+  const exclusionClause = excludeTerms.size > 0
+    ? `\nIMPORTANT: The following terms have already been assigned to other noun decks for this chapter — do NOT include any of them: ${[...excludeTerms].join(', ')}.\n`
+    : ''
+
   return `You are a Spanish language teacher creating flashcards for language learners.
 
-${instruction}
+${instruction}${exclusionClause}
 
 For each item provide:
 - "spanish": the Spanish term exactly as it appears in (or is derived from) the text
@@ -143,8 +147,8 @@ interface CardJson {
   sourceSentences?: Array<{ es: string; en: string }>
 }
 
-async function extractCards(subcategory: string, text: string): Promise<CardJson[]> {
-  const prompt = buildPrompt(subcategory, text)
+async function extractCards(subcategory: string, text: string, excludeTerms: Set<string> = new Set()): Promise<CardJson[]> {
+  const prompt = buildPrompt(subcategory, text, excludeTerms)
   const result = await model.generateContent(prompt)
   const raw = result.response.text().trim()
   const jsonText = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
@@ -173,12 +177,40 @@ async function ensureVocabTerms(cards: CardJson[]): Promise<Map<string, string>>
   return new Map((termRows ?? []).map((r) => [r.spanish_term, r.id]))
 }
 
+/** Fetch the lowercase Spanish terms from an already-seeded deck (for exclusion tracking). */
+async function fetchExistingDeckTerms(
+  bookNumber: number,
+  chapterNumber: number,
+  subcategory: string,
+): Promise<Set<string>> {
+  const { data: deck } = await sb
+    .from('decks')
+    .select('id')
+    .eq('user_id', USER_ID)
+    .eq('book_number', bookNumber)
+    .eq('chapter_number', chapterNumber)
+    .eq('subcategory', subcategory)
+    .eq('version', 1)
+    .maybeSingle()
+
+  if (!deck) return new Set()
+
+  const { data: cards } = await sb
+    .from('cards')
+    .select('spanish_term')
+    .eq('deck_id', deck.id)
+
+  return new Set((cards ?? []).map((c: { spanish_term: string }) => c.spanish_term.trim().toLowerCase()))
+}
+
 async function seedChapterDeck(
   bookNumber: number,
   chapterNumber: number,
   subcategory: string,
   chapterText: string,
-): Promise<void> {
+  usedTerms: Set<string> = new Set(),
+): Promise<Set<string>> {
+  /** Returns the set of lowercase Spanish terms that ended up in this deck. */
   const deckName = buildDeckName(bookNumber, chapterNumber, subcategory, 1)
   const category = DECK_TYPES.find((t) => t.subcategory === subcategory)?.category ?? 'general'
 
@@ -195,21 +227,22 @@ async function seedChapterDeck(
 
   if (existing) {
     console.log(`  ⏭  Already exists: ${deckName}`)
-    return
+    // Return the existing deck's terms so they can be excluded from later decks.
+    return fetchExistingDeckTerms(bookNumber, chapterNumber, subcategory)
   }
 
-  // Extract cards via Gemini
+  // Extract cards via Gemini (excluding terms already claimed by earlier noun decks)
   let cards: CardJson[]
   try {
-    cards = await extractCards(subcategory, chapterText)
+    cards = await extractCards(subcategory, chapterText, usedTerms)
   } catch (err) {
     console.error(`  ❌  Gemini error for ${deckName}: ${err}`)
-    return
+    return new Set()
   }
 
   if (!cards.length) {
     console.warn(`  ⚠️   No cards returned for ${deckName}, skipping.`)
-    return
+    return new Set()
   }
 
   // Create deck
@@ -230,7 +263,7 @@ async function seedChapterDeck(
 
   if (deckErr || !deck) {
     console.error(`  ❌  Failed to create deck ${deckName}: ${deckErr?.message}`)
-    return
+    return new Set()
   }
 
   // Upsert vocabulary terms and get IDs
@@ -255,10 +288,13 @@ async function seedChapterDeck(
   const { error: cardsErr } = await sb.from('cards').insert(cardRows)
   if (cardsErr) {
     console.error(`  ❌  Card insert failed for ${deckName}: ${cardsErr.message}`)
-    return
+    return new Set()
   }
 
   console.log(`  ✅  Created: ${deckName} (${cardRows.length} cards)`)
+
+  // Return the terms seeded so callers can exclude them from subsequent noun decks.
+  return new Set(cards.map((c) => c.spanish.trim().toLowerCase()))
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────
@@ -284,14 +320,42 @@ for (const book of books) {
 
     console.log(`\n📖  Book ${book.bookNumber}, Chapter ${chapter.number}: ${chapter.titleEs}`)
 
-    for (const deckType of DECK_TYPES) {
+    // Noun subcategories must be seeded in CEFR order so each level can exclude
+    // words already claimed by lower levels. A1 gets first dibs on the easiest
+    // words, then A2, B1, B2, and finally the general "nouns" deck.
+    const NOUN_SUBCATEGORY_ORDER = ['nouns-a1', 'nouns-a2', 'nouns-b1', 'nouns-b2', 'nouns']
+    const nounSubcategorySet = new Set(NOUN_SUBCATEGORY_ORDER)
+
+    // Ordered list of all deck types to process: noun subcategories first (in
+    // CEFR order), then everything else in the original DECK_TYPES order.
+    const orderedDeckTypes = [
+      ...NOUN_SUBCATEGORY_ORDER
+        .map((sub) => DECK_TYPES.find((t) => t.subcategory === sub))
+        .filter(Boolean),
+      ...DECK_TYPES.filter((t) => !nounSubcategorySet.has(t.subcategory)),
+    ] as typeof DECK_TYPES
+
+    const chapterUsedNounTerms = new Set<string>()
+
+    for (const deckType of orderedDeckTypes) {
       if (SUBCATEGORY_FILTER !== null && deckType.subcategory !== SUBCATEGORY_FILTER) continue
-      await seedChapterDeck(
+
+      const isNounDeck = nounSubcategorySet.has(deckType.subcategory)
+      const usedTerms = isNounDeck ? chapterUsedNounTerms : new Set<string>()
+
+      const deckTerms = await seedChapterDeck(
         book.bookNumber,
         chapter.number,
         deckType.subcategory,
         chapterText,
+        usedTerms,
       )
+
+      // Accumulate found/generated terms so later noun decks know what to avoid.
+      if (isNounDeck) {
+        for (const term of deckTerms) chapterUsedNounTerms.add(term)
+      }
+
       // Respect Gemini rate limits
       await new Promise((r) => setTimeout(r, 1200))
     }

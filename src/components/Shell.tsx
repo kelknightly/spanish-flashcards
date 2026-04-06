@@ -2,10 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BookOpen, MessageSquare, RotateCcw, Volume2, VolumeX, LogOut } from 'lucide-react'
+import { BookOpen, MessageSquare, RotateCcw, Volume2, VolumeX, Sparkles, LogOut } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useStreak } from '@/hooks/useStreak'
 import { useSound } from '@/hooks/useSound'
+import { useSparkle } from '@/contexts/SparkleContext'
 import { cn } from '@/lib/utils'
 
 const NAV_ITEMS = [
@@ -19,6 +20,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const { signOut } = useAuth()
   const streak = useStreak()
   const { enabled, toggle } = useSound()
+  const { paused, togglePaused } = useSparkle()
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -61,6 +63,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
             className="rounded-lg p-1.5 text-white/40 transition-colors hover:bg-white/10 hover:text-white/80"
           >
             {enabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+          </button>
+          <button
+            onClick={togglePaused}
+            title={paused ? 'Enable glitter' : 'Pause glitter'}
+            className="rounded-lg p-1.5 transition-colors hover:bg-white/10 hover:text-white/80"
+            style={{ color: paused ? 'rgb(255 255 255 / 0.2)' : 'rgb(255 255 255 / 0.4)' }}
+          >
+            <Sparkles size={16} />
           </button>
           <button
             onClick={() => signOut()}

@@ -31,7 +31,9 @@ const MAX_PARTICLES = 500
 
 export function SparkleCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const { registerBurst } = useSparkle()
+  const { registerBurst, paused } = useSparkle()
+  const pausedRef = useRef(paused)
+  useEffect(() => { pausedRef.current = paused }, [paused])
 
   useEffect(() => {
     // Only run on pointer-precise (non-touch) devices
@@ -114,6 +116,7 @@ export function SparkleCanvas() {
     }
 
     const onMouseMove = (e: MouseEvent) => {
+      if (pausedRef.current) return
       // Spawn 3–5 trail particles per move event
       const count = Math.floor(Math.random() * 3) + 3
       for (let i = 0; i < count; i++) spawnTrailParticle(e.clientX, e.clientY)
@@ -136,6 +139,13 @@ export function SparkleCanvas() {
     })
 
     const draw = () => {
+      if (pausedRef.current) {
+        particles.length = 0
+        rainZones.length = 0
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
+        animId = requestAnimationFrame(draw)
+        return
+      }
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
       // Tick rain zones and spawn continuous particles
