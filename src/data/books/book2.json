@@ -19,13 +19,13 @@
       "number": 3,
       "title": "Edmund and the Wardrobe",
       "titleEs": "Edmund y el armario",
-      "hasText": false
+      "hasText": true
     },
     {
       "number": 4,
       "title": "Turkish Delight",
       "titleEs": "Delicias turcas",
-      "hasText": false
+      "hasText": true
     },
     {
       "number": 5,

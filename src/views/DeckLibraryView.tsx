@@ -60,6 +60,18 @@ function LibraryContent() {
         </div>
       </header>
 
+      {/* ── Mobile back strip — flows below the tab bar, not absolutely positioned ── */}
+      {selectedChapter && (
+        <div className="md:hidden shrink-0 flex gap-2 px-4 py-2 bg-brand-bg/80 backdrop-blur border-b border-white/10">
+          <button
+            onClick={() => router.push(`/decks?view=chapter&book=${selectedBook}`)}
+            className="text-xs text-white/50 hover:text-white flex items-center gap-1"
+          >
+            ← Chapters
+          </button>
+        </div>
+      )}
+
       {/* ── Main area ────────────────────────────────────────── */}
       {view === 'type' ? (
         <div className="flex flex-1 overflow-hidden">
@@ -80,18 +92,6 @@ function LibraryContent() {
                 selectedChapter={selectedChapter}
                 onSelect={selectChapter}
               />
-            </div>
-          )}
-
-          {/* Mobile back button strip when in deep panel */}
-          {selectedChapter && (
-            <div className="md:hidden absolute top-14 left-0 right-0 z-10 flex gap-2 px-4 py-2 bg-brand-bg/80 backdrop-blur border-b border-white/10">
-              <button
-                onClick={() => router.push(`/decks?view=chapter&book=${selectedBook}`)}
-                className="text-xs text-white/50 hover:text-white flex items-center gap-1"
-              >
-                ← Chapters
-              </button>
             </div>
           )}
 

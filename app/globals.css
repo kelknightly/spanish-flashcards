@@ -116,6 +116,19 @@
 
 .flip-card-back {
   transform: rotateY(180deg);
+  /* Firefox Android doesn't honour backface-visibility; hide the back face manually */
+  visibility: hidden;
+}
+
+/* At mid-flip (0.25s into the 0.5s animation) swap visibility */
+.flip-card-inner.flipped .flip-card-back {
+  visibility: visible;
+  transition: visibility 0s linear 0.25s;
+}
+
+.flip-card-inner.flipped .flip-card-front {
+  visibility: hidden;
+  transition: visibility 0s linear 0.25s;
 }
 
 /* ─── Shake animation ───────────────────────────────────────────────── */
