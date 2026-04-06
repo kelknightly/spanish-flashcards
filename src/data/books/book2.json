@@ -7,13 +7,13 @@
       "number": 1,
       "title": "Lucy Looks into a Wardrobe",
       "titleEs": "Lucy mira dentro del ropero",
-      "hasText": false
+      "hasText": true
     },
     {
       "number": 2,
       "title": "What Lucy Found There",
       "titleEs": "Lo que Lucy encontró allí",
-      "hasText": false
+      "hasText": true
     },
     {
       "number": 3,

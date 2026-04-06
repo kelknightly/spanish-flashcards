@@ -47,10 +47,24 @@ const geminiApiKey    = requireEnv('GEMINI_API_KEY')
 const args = process.argv.slice(2)
 const userIdIdx = args.indexOf('--user-id')
 if (userIdIdx === -1 || !args[userIdIdx + 1]) {
-  console.error('\nUsage: npx tsx scripts/seed-decks.ts --user-id <USER_UUID>\n')
+  console.error('\nUsage: npx tsx scripts/seed-decks.ts --user-id <USER_UUID> [--book <N>] [--chapters <N-M|N>]\n')
   process.exit(1)
 }
 const USER_ID = args[userIdIdx + 1]
+
+// Optional filters: --book 2 --chapters 1-2  OR  --chapters 3
+const bookFilterIdx = args.indexOf('--book')
+const BOOK_FILTER = bookFilterIdx !== -1 ? parseInt(args[bookFilterIdx + 1], 10) : null
+
+const chaptersFilterIdx = args.indexOf('--chapters')
+let CHAPTER_MIN: number | null = null
+let CHAPTER_MAX: number | null = null
+if (chaptersFilterIdx !== -1) {
+  const chapArg = args[chaptersFilterIdx + 1]
+  const parts = chapArg.split('-').map(Number)
+  CHAPTER_MIN = parts[0]
+  CHAPTER_MAX = parts.length > 1 ? parts[1] : parts[0]
+}
 
 // ── Clients ────────────────────────────────────────────────────────────────
 
@@ -240,7 +254,12 @@ let totalCreated = 0
 let totalSkipped = 0
 
 for (const book of books) {
+  if (BOOK_FILTER !== null && book.bookNumber !== BOOK_FILTER) continue
+
   for (const chapter of book.chapters) {
+    if (CHAPTER_MIN !== null && CHAPTER_MAX !== null &&
+        (chapter.number < CHAPTER_MIN || chapter.number > CHAPTER_MAX)) continue
+
     const chapterText = getChapterText(book.bookNumber, chapter.number)
     if (!chapterText?.trim()) {
       console.log(`📖  Bk ${book.bookNumber} Ch ${chapter.number} — no text yet, skipping all 8 decks`)

@@ -2,16 +2,21 @@
 /**
  * scripts/patch-chapter-text.mjs
  *
- * Usage:
- *   node scripts/patch-chapter-text.mjs <bookNumber> <chapterNumber> <text>
+ * Writes transcribed chapter text to a .txt file and flips hasText=true in
+ * the book JSON. Always uses JSON.parse/stringify so accented characters are
+ * handled correctly.
  *
- * Or pipe text via stdin:
- *   cat chapter.txt | node scripts/patch-chapter-text.mjs <bookNumber> <chapterNumber>
+ * Usage (supply text via stdin — the normal path after transcribing screenshots):
+ *   cat src/data/books/text/book2-ch3.txt | node scripts/patch-chapter-text.mjs 2 3
  *
- * This bypasses response-size limits by writing directly to the JSON file.
+ * Usage (text already exists in .txt, just flip the JSON flag):
+ *   node scripts/patch-chapter-text.mjs 2 3 --mark-only
+ *
+ * Usage (inline text, mainly for testing):
+ *   node scripts/patch-chapter-text.mjs 2 3 "Some text here"
  */
 
-import { readFileSync, writeFileSync, mkdirSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { createInterface } from 'readline'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
@@ -19,24 +24,37 @@ import { fileURLToPath } from 'url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const dataDir = resolve(__dirname, '../src/data/books')
 
-const [bookStr, chapterStr, ...rest] = process.argv.slice(2)
+const args = process.argv.slice(2)
+const [bookStr, chapterStr, ...rest] = args
 const bookNumber = parseInt(bookStr)
 const chapterNumber = parseInt(chapterStr)
+const markOnly = rest.includes('--mark-only')
 
 if (!bookNumber || !chapterNumber) {
-  console.error('Usage: node scripts/patch-chapter-text.mjs <bookNumber> <chapterNumber> [text]')
+  console.error('Usage: node scripts/patch-chapter-text.mjs <bookNumber> <chapterNumber> [--mark-only | text]')
   process.exit(1)
 }
 
+const txtPath = resolve(dataDir, 'text', `book${bookNumber}-ch${chapterNumber}.txt`)
+mkdirSync(resolve(dataDir, 'text'), { recursive: true })
+
 async function getText() {
-  if (rest.length > 0) return rest.join(' ')
+  if (markOnly) {
+    // Just read the existing file — we only need the length for the log line
+    if (!existsSync(txtPath)) {
+      console.error(`❌  No txt file found at ${txtPath}. Transcribe the chapter first.`)
+      process.exit(1)
+    }
+    return readFileSync(txtPath, 'utf8')
+  }
+  const inlineText = rest.filter(r => r !== '--mark-only').join(' ')
+  if (inlineText.trim()) return inlineText
+  // Read from stdin
   const rl = createInterface({ input: process.stdin })
   const lines = []
   for await (const line of rl) lines.push(line)
   return lines.join('\n')
 }
-
-mkdirSync(resolve(dataDir, 'text'), { recursive: true })
 
 const text = await getText()
 if (!text.trim()) {
@@ -44,11 +62,12 @@ if (!text.trim()) {
   process.exit(1)
 }
 
-// Write text to the .txt file
-const txtPath = resolve(dataDir, 'text', `book${bookNumber}-ch${chapterNumber}.txt`)
-writeFileSync(txtPath, text, 'utf8')
+// Write text to the .txt file (skip in mark-only mode — file already correct)
+if (!markOnly) {
+  writeFileSync(txtPath, text, 'utf8')
+}
 
-// Update hasText flag in the JSON metadata file
+// Update hasText flag via JSON.parse — safe for all Unicode / accented chars
 const metaPath = resolve(dataDir, `book${bookNumber}.json`)
 const meta = JSON.parse(readFileSync(metaPath, 'utf8'))
 const metaChapter = meta.chapters.find(c => c.number === chapterNumber)
