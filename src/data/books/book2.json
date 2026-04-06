@@ -31,13 +31,13 @@
       "number": 5,
       "title": "Back on This Side of the Door",
       "titleEs": "En el lado de acá de la puerta",
-      "hasText": false
+      "hasText": true
     },
     {
       "number": 6,
       "title": "Into the Thicket",
       "titleEs": "En casa de los Castores",
-      "hasText": false
+      "hasText": true
     },
     {
       "number": 7,
