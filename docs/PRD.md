@@ -3,7 +3,7 @@
 
 **Owner:** Kelly  
 **Last updated:** April 2026  
-**Status:** Pre-development
+**Status:** Active
 
 ---
 
@@ -49,15 +49,44 @@ No team or multi-user features required.
 
 ## 5. Feature List
 
-### 5.1 Screenshot Upload & AI Extraction
+### 5.1 Chapter Seeding (Primary Workflow)
 
-- User uploads 5–10 screenshots per chapter after completing the chapter study cycle
-- Gemini Vision (gemini-2.0-flash) reads the text off the images automatically — no manual text entry
-- User types a natural-language request into the AI chat panel to define the deck (e.g. *"Extract the top 5 most frequent verbs conjugated in the present tense from this chapter"*)
+The primary deck-creation path is a scripted pipeline:
+
+1. Screenshot the Kindle chapter and save PNGs to `docs/chapter-screenshots/`
+2. Ask Copilot to transcribe the screenshots to `src/data/books/text/bookN-chN.txt`
+3. Mark the chapter as available: `npm run chapter:mark -- N N --mark-only`
+4. Seed all decks: `npm run chapter:seed -- --user-id <UUID> --book N --chapters N`
+
+The seed script calls Gemini once per deck type and creates up to **15 decks of 10 cards each**, covering:
+
+| Subcategory key | What it contains |
+|---|---|
+| `nouns` | Most frequent nouns from the chapter |
+| `nouns-a1` | A1-level nouns |
+| `nouns-a2` | A2-level nouns |
+| `nouns-b1` | B1-level nouns |
+| `nouns-b2` | B2-level nouns |
+| `verbs-present` | Present-tense verb forms |
+| `verbs-preterite` | Preterite (simple past) forms |
+| `verbs-imperfect` | Imperfect past forms |
+| `verbs-future` | Future-tense forms |
+| `verbs-conditional` | Conditional forms |
+| `verbs-imperative` | Imperative forms |
+| `verbs-subjunctive` | Subjunctive forms |
+| `adjectives` | Adjectives |
+| `pronoun-composites` | Composite pronoun usages (e.g. *se lo dio*) |
+| `general` | General high-frequency vocabulary |
+
+Decks are auto-named: e.g. `Bk 2 – Ch 3 – Present Tense Verbs`. The script is **idempotent** — it skips any deck that already exists.
+
+### 5.1a AI Chat Extraction (Secondary Workflow)
+
+- User uploads 5–10 screenshots per chapter into the chat panel
+- Gemini Vision reads the text off the images automatically
+- User types a natural-language request to define a custom deck
 - AI returns a structured flashcard deck ready to study
-- Deck is auto-named using the convention: `Bk [N] - Ch [N] - [category] - [subcategory]`  
-  Example: `Bk 1 - Ch 15 - verbs - present tense - first person`
-- User can rename decks before saving
+- Useful for ad-hoc or non-standard deck types not covered by the seed script
 
 ### 5.2 AI Chat Panel
 
@@ -98,6 +127,16 @@ No team or multi-user features required.
 - Decks display: name, date created, book/chapter, card count, last studied date, best score, SM-2 mastery ring (% of cards with interval ≥ 21 days), difficulty badge per card
 - Resume any saved deck
 - "Review wrong cards" mode: re-studies only cards marked incorrect in the last session (or across all sessions)
+- **Deck expansion**: once all cards in a deck are mastered, an "Expand" button creates a successor deck (v2, v3 …) with fresh terms from the same chapter + subcategory. All previously seen terms are excluded.
+- **Deck augmentation**: an "Add more" button adds additional cards directly to an existing deck from the same chapter text.
+
+### 5.4b Annotated Chapter Reader
+
+- A dedicated `/reader` page displays the full Spanish text of any chapter that has been transcribed
+- Vocabulary terms from the user's existing decks are **highlighted inline**, colour-coded by deck type (verb tense, noun CEFR level, etc.)
+- Toggleable filter buttons let the user show/hide each word category
+- Tapping/clicking a highlighted word shows its deck origin and English translation
+- Provides reading-in-context support — a bridge between passive comprehension and active flashcard recall
 
 ### 5.4a Deck Completion Screen
 

@@ -28,31 +28,57 @@ Everything is stored in **Supabase** (a hosted Postgres database):
 
 ## What gets generated per chapter
 
-The seed script calls Gemini once per deck type and creates **8 decks of 10 cards each**:
+The seed script calls Gemini once per deck type and creates up to **15 decks of 10 cards each**:
 
 | Deck | What it contains |
 |---|---|
-| Nouns | 10 common nouns from the chapter (with articles) |
-| Verbs – Present | 10 present-tense verb forms from the chapter |
-| Verbs – Preterite | 10 preterite (simple past) forms |
-| Verbs – Imperfect | 10 imperfect past forms |
-| Verbs – Future | 10 future-tense forms |
-| Verbs – Conditional | 10 conditional forms |
-| Verbs – Imperative | 10 imperative forms |
-| Verbs – Subjunctive | 10 subjunctive forms |
+| Nouns (general) | Most frequent nouns from the chapter |
+| Nouns – A1 | A1-level nouns |
+| Nouns – A2 | A2-level nouns |
+| Nouns – B1 | B1-level nouns |
+| Nouns – B2 | B2-level nouns |
+| Verbs – Present | Present-tense verb forms |
+| Verbs – Preterite | Preterite (simple past) forms |
+| Verbs – Imperfect | Imperfect past forms |
+| Verbs – Future | Future-tense forms |
+| Verbs – Conditional | Conditional forms |
+| Verbs – Imperative | Imperative forms |
+| Verbs – Subjunctive | Subjunctive forms |
+| Adjectives | Adjectives from the chapter |
+| Pronoun Composites | Composite pronoun usages (e.g. *se lo dio*) |
+| General | High-frequency vocabulary that doesn't fit other categories |
 
 ---
 
-## "Add 10 more" (deck expansion)
+## "Add more" — deck augmentation vs expansion
 
-Once you've mastered every card in a deck, you can request 10 more words in the same category from the same chapter:
+There are two ways to get more vocabulary from a chapter after you've mastered a deck:
 
-1. The app checks that all cards are mastered
-2. It collects every term you've already seen in this deck's history (so nothing repeats)
-3. It calls Gemini again with the same chapter text, asking for fresh terms only
-4. A new versioned deck is created — e.g. *Bk 2 – Ch 1 – nouns v2* — linked back to the original
+**Augment** (adds cards to the existing deck):
+- Tap "Add More" on a deck tile
+- The app fetches fresh terms from the same chapter text, excluding all terms already in the deck
+- New cards are added directly to the original deck
+- Use this when you want to top up a deck without starting a new session
 
-This continues until the chapter runs out of new vocabulary.
+**Expand** (creates a new versioned deck):
+- Tap "Expand" on a deck tile
+- All terms seen across the entire deck lineage are excluded
+- A new deck is created — e.g. *Bk 2 – Ch 1 – Present Tense Verbs v2* — linked back to the original via `parent_deck_id`
+- Use this once a deck is fully mastered and you want a clean new session with only fresh words
+
+Both continue until the chapter runs out of new vocabulary for that category.
+
+---
+
+## Reading the annotated chapter text
+
+Once a chapter is seeded, you can read its annotated text at `/reader`:
+
+1. Select the book and chapter from the sidebar
+2. The full Spanish text is displayed with vocabulary terms from your decks highlighted inline
+3. Colours indicate word type: blue = present tense, orange = imperfect, amber = preterite, etc.
+4. Use the filter buttons at the top to show/hide specific word categories
+5. This bridges passive reading comprehension with your active flashcard study
 
 ---
 

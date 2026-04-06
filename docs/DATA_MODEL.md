@@ -34,8 +34,11 @@ A flashcard deck created from one chapter's screenshots.
 | `source_text` | `text` | Full extracted text from all uploaded screenshots for this deck (used for sentence lookup) |
 | `created_at` | `timestamptz` | Default `now()` |
 | `last_studied_at` | `timestamptz` | Nullable; updated on each study session |
+| `version` | `integer` | Deck version within its lineage. Starts at `1`; incremented each time `/api/decks/[deckId]/expand` creates a successor. |
+| `is_system_generated` | `boolean` | `true` for decks seeded by the `chapter:seed` script; `false` for user-created decks. Default `false`. |
+| `parent_deck_id` | `uuid` | FK → `decks.id` (nullable, `ON DELETE SET NULL`). Set on expanded versioned decks to point back to the root deck of their lineage. |
 
-**Indexes:** `user_id`, `(book_number, chapter_number)`
+**Indexes:** `user_id`, `(book_number, chapter_number)`, `parent_deck_id`, `(user_id, book_number, chapter_number, subcategory, version)`
 
 ---
 
@@ -96,6 +99,7 @@ SM-2 spaced repetition state per vocabulary term per user. **Keyed on `vocab_ter
 | `total_reviews` | `integer` | All-time review count across all decks for this term. |
 | `total_correct` | `integer` | All-time count of reviews with quality ≥ 3. |
 | `mastered_at` | `timestamptz` | Nullable. Set the first time `interval_days` reaches ≥ 21. Triggers the "Word learned" toast. |
+| `introduced_at` | `timestamptz` | Set on first study of this term. Used to enforce the daily new-card cap without counting re-reviews. |
 
 **Unique constraint:** `(vocab_term_id, user_id)`  
 **Indexes:** `(user_id, next_review_at)` — for efficient "due cards" queries; `(user_id, mastered_at)` — for mastery ring calculations
@@ -207,6 +211,20 @@ function updateSM2(
 | 0 | Complete blank — no recognition |
 
 Scores ≥ 3 = correct (green); scores < 3 = incorrect (red) in the UI.
+
+---
+
+## Supabase RPCs
+
+### `get_deck_mastery_stats(deck_ids uuid[], p_user_id uuid)`
+
+Returns per-deck card counts called from `GET /api/decks` to avoid N+1 queries.
+
+**Returns:** `table(deck_id uuid, total_cards bigint, mastered_cards bigint, reviewed_cards bigint)`
+
+- `total_cards` — all cards in the deck
+- `mastered_cards` — cards whose `card_progress.mastered_at` is not null (interval ≥ 21 days)
+- `reviewed_cards` — cards that have any `card_progress` row (studied at least once), regardless of mastery
 
 ---
 

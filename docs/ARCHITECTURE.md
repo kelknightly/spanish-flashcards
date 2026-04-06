@@ -32,53 +32,93 @@ spanish-flashcards/
 │   ├── globals.css               # Tailwind base + custom CSS variables
 │   ├── login/
 │   │   └── page.tsx              # Login page (wraps LoginView)
-│   └── (protected)/              # Route group — all routes require auth
-│       ├── layout.tsx            # Wraps ProtectedLayout
-│       ├── page.tsx              # Redirect → /decks
-│       ├── decks/
-│       │   ├── page.tsx          # Deck library
-│       │   └── [deckId]/
-│       │       └── page.tsx      # Study session (split-panel / tab layout)
-│       ├── chat/
-│       │   └── page.tsx          # Standalone chat (for new deck extraction)
-│       ├── review/
-│       │   └── page.tsx          # Due-for-review queue (SM-2 scheduled cards)
-│       └── settings/
-│           └── page.tsx          # Account / preferences
+│   ├── (protected)/              # Route group — all routes require auth
+│   │   ├── layout.tsx            # Wraps ProtectedLayout
+│   │   ├── page.tsx              # Redirect → /decks
+│   │   ├── decks/
+│   │   │   ├── page.tsx          # Deck library (by-chapter + by-type browsing)
+│   │   │   └── [deckId]/
+│   │   │       └── page.tsx      # Study session (split-panel / tab layout)
+│   │   ├── chat/
+│   │   │   └── page.tsx          # Standalone chat (wraps ChatView)
+│   │   ├── review/
+│   │   │   └── page.tsx          # Due-for-review queue (SM-2 scheduled cards)
+│   │   └── reader/
+│   │       └── page.tsx          # Annotated chapter reader (wraps ReaderView)
+│   └── api/
+│       ├── chat/route.ts         # POST — streaming Gemini chat
+│       ├── evaluate/route.ts     # POST — AI grading + SM-2 update
+│       ├── reader/route.ts       # GET  — chapter text + deck term annotations
+│       ├── review/route.ts       # GET  — SM-2 due cards
+│       └── decks/
+│           ├── route.ts          # GET list / POST create deck
+│           └── [deckId]/
+│               ├── route.ts      # GET single deck with cards
+│               ├── augment/
+│               │   └── route.ts  # POST — add more cards to existing deck (same chapter)
+│               └── expand/
+│                   └── route.ts  # POST — create next versioned deck (v2, v3 …)
 │
 ├── src/
 │   ├── components/
 │   │   ├── ui/                   # shadcn/ui primitives
+│   │   ├── library/              # Deck-library sub-panels
+│   │   │   ├── BookListPanel.tsx       # Book selection sidebar
+│   │   │   ├── ChapterListPanel.tsx    # Chapter selection sidebar
+│   │   │   ├── ChapterDecksPanel.tsx   # Deck grid for a selected chapter
+│   │   │   └── TypeBrowseView.tsx      # Cross-chapter browse by deck type
 │   │   ├── SparkleCanvas.tsx     # Cursor glitter trail (desktop only)
-│   │   ├── FlashCard.tsx         # Card flip component + confetti trigger
 │   │   ├── ChatPanel.tsx         # AI chat interface (persistent history)
-│   │   ├── DeckCard.tsx          # Deck library tile
-│   │   ├── ScoreBoard.tsx        # Running session score display
-│   │   ├── ProtectedLayout.tsx   # Auth guard + Shell (same pattern as Hubspot dashboard)
+│   │   ├── ProtectedLayout.tsx   # Auth guard + Shell
+│   │   ├── Providers.tsx         # React context providers (Auth, Sparkle)
 │   │   └── Shell.tsx             # Nav, tab bar, top-level layout
 │   ├── contexts/
-│   │   └── AuthContext.tsx       # Supabase auth state (direct copy from Hubspot dashboard)
+│   │   ├── AuthContext.tsx       # Supabase auth state
+│   │   └── SparkleContext.tsx    # Global sparkle/confetti trigger
+│   ├── data/
+│   │   └── books/
+│   │       ├── index.ts          # Book/chapter metadata + DECK_TYPES registry
+│   │       ├── text-loader.ts    # Server-only: reads chapter .txt files from disk
+│   │       ├── book1.json        # Book 1 chapter metadata
+│   │       ├── book2.json        # Book 2 chapter metadata
+│   │       ├── book3.json        # Book 3 chapter metadata
+│   │       └── text/             # Chapter plain-text files (bookN-chN.txt)
+│   ├── hooks/
+│   │   ├── useSound.ts           # Audio feedback hook
+│   │   └── useStreak.ts          # Day-streak fetch + display
 │   ├── lib/
-│   │   ├── supabase.ts           # Supabase client (same pattern as Hubspot dashboard)
+│   │   ├── supabase.ts           # Supabase client
 │   │   ├── auth-api.ts           # Server-side JWT validation + email allowlist
 │   │   ├── gemini.ts             # Gemini client initialisation + helper types
-│   │   ├── sm2.ts                # SM-2 algorithm (pure TypeScript function)
+│   │   ├── sm2.ts                # SM-2 algorithm (pure TypeScript)
 │   │   └── utils.ts              # cn(), format helpers
 │   └── views/
 │       ├── LoginView.tsx         # Login form UI
-│       ├── DeckLibraryView.tsx   # Browseable deck list
+│       ├── DeckLibraryView.tsx   # Browseable deck list (by chapter or type)
 │       ├── StudyView.tsx         # Split-panel study session (chat + flashcards)
-│       ├── ReviewView.tsx        # Due-cards review session
-│       └── SettingsView.tsx      # Settings page
+│       ├── ReviewView.tsx        # Due-cards SM-2 review session
+│       ├── ChatView.tsx          # Standalone chat page wrapper
+│       └── ReaderView.tsx        # Annotated chapter text reader
+│
+├── scripts/
+│   ├── seed-decks.ts             # Seed all deck types for a chapter (idempotent)
+│   ├── patch-chapter-text.mjs    # Mark chapters as hasText + update book JSON
+│   ├── patch-card-sentences.ts   # Backfill source_sentences on existing cards
+│   ├── patch-pronoun-composites.ts # One-off: seed pronoun-composite deck type
+│   ├── patch-remove-card.ts      # One-off: delete a specific card by ID
+│   └── audit-decks.ts            # Report deck/card counts and missing data
 │
 ├── docs/                         # Project documentation
 │   ├── PRD.md
 │   ├── DATA_MODEL.md
-│   └── ARCHITECTURE.md
+│   ├── ARCHITECTURE.md
+│   └── How This Works.md
 │
-├── public/                       # Static assets
+├── public/
+│   └── sounds/                   # Audio feedback files
+├── supabase/
+│   └── migrations/               # SQL migration files (run in Supabase Dashboard)
 ├── .env                          # Local secrets (never committed)
-├── .env.example                  # Template (committed)
 ├── next.config.ts
 ├── tailwind.config.ts
 ├── tsconfig.json
@@ -96,8 +136,8 @@ spanish-flashcards/
 
 ### `/(protected)/decks`
 - Lists all saved decks for the user
-- Each deck tile shows: name, card count, last studied, best score, due-card count
-- "New deck" button → `/chat` to start an extraction session
+- Two browse modes (toggled via tab bar): **By Chapter** (Book → Chapter → Decks panel) and **By Type** (cross-chapter view grouped by subcategory)
+- Each deck tile shows: name, card count, mastered count, reviewed count, version badge, Expand / Augment buttons
 
 ### `/(protected)/decks/[deckId]`
 - Primary study screen
@@ -111,7 +151,13 @@ spanish-flashcards/
 
 ### `/(protected)/review`
 - Shows all cards due today (SM-2 scheduled) across all decks
-- Same `FlashCard` interface as study session
+- Same study interface as the main study session
+
+### `/(protected)/reader`
+- Annotated chapter text reader (`ReaderView`)
+- Select a book + chapter from the sidebar; the chapter text is displayed with vocabulary terms highlighted by deck type (verb tense, noun CEFR level, etc.)
+- Colour-coded spans match the subcategory palette; toggleable filter buttons let you show/hide each word type
+- Powered by `GET /api/reader` which joins chapter text with the user's existing deck cards
 
 ---
 
@@ -193,6 +239,25 @@ Returns a single deck with all its cards and `card_progress` rows.
 
 ### `GET /api/review`
 Returns all cards due for SM-2 review today, joined with their deck names.
+
+### `GET /api/reader`
+Returns the plain-text content of a chapter plus a map of vocabulary term → subcategory, built from all decks the user has for that book/chapter. Used by `ReaderView` to annotate the text.
+
+**Query params:** `?book=1&chapter=3`
+
+**Response:**
+```json
+{
+  "text": "Era una noche oscura …",
+  "termMap": { "era": "verbs-imperfect", "noche": "nouns-a1" }
+}
+```
+
+### `POST /api/decks/[deckId]/augment`
+Adds more cards to an **existing** deck from the same chapter's text. Fetches the chapter text server-side, collects all terms already in the deck, and asks Gemini for additional terms of the same subcategory. Cards are inserted directly into the original deck.
+
+### `POST /api/decks/[deckId]/expand`
+Creates a **new versioned deck** (v2, v3 …) from the same chapter + subcategory as the source deck. All previously seen terms across the deck lineage are excluded from the new batch. The new deck's `parent_deck_id` points back to the original.
 
 ---
 
