@@ -135,12 +135,15 @@ export function Shell({ children }: { children: React.ReactNode }) {
           >
             {enabled ? <Volume2 size={22} strokeWidth={2.5} /> : <VolumeX size={22} strokeWidth={2.5} />}
           </button>
-          {/* Theme toggle */}
+          {/* Theme toggle — shows icon of CURRENT theme */}
           <button
             onClick={() => setTheme(nextTheme)}
             title={`Theme: ${themeLabels[theme]} → click for ${themeLabels[nextTheme]}`}
-            className="rounded-xl p-2 transition-colors hover:bg-white/10"
-            style={{ color: themeColors[theme] }}
+            className="rounded-xl p-2 transition-all hover:bg-white/10"
+            style={{
+              color: themeColors[theme],
+              filter: `drop-shadow(0 0 6px ${themeColors[theme]}88)`,
+            }}
           >
             {themeIcons[theme]}
           </button>

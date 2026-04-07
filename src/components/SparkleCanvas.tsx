@@ -73,15 +73,25 @@ export function SparkleCanvas() {
     // Cursor trail particle – bright, fatty, long-lived
     const spawnTrailParticle = (x: number, y: number) => {
       if (particles.length >= MAX_PARTICLES) particles.shift()
+      const isWinter = themeRef.current === 'winter'
+      const isSummer = themeRef.current === 'summer'
       particles.push({
         x,
         y,
-        vx: (Math.random() - 0.5) * 4,
+        vx: (Math.random() - 0.5) * (isWinter ? 3 : 4),
         vy: -(Math.random() * 3.5 + 1),
-        size: Math.random() * 4.5 + 2.5,
+        size: isWinter
+          ? Math.random() * 9 + 5          // 5–14px — big icy shards
+          : isSummer
+          ? Math.random() * 18 + 8         // 8–26px — giant pink blossoms
+          : Math.random() * 4.5 + 2.5,     // original glitter size
         color: randomColor(),
         life: 0,
-        maxLife: Math.floor(Math.random() * 20 + 40), // 40–60 frames ≈ 0.7–1 s
+        maxLife: isWinter
+          ? Math.floor(Math.random() * 30 + 55) // 55–85 frames — linger like snow
+          : isSummer
+          ? Math.floor(Math.random() * 40 + 60) // 60–100 frames — petals drift long
+          : Math.floor(Math.random() * 20 + 40),
         isBurst: false,
       })
     }
@@ -224,16 +234,31 @@ export function SparkleCanvas() {
             ctx.stroke()
           }
         } else if (t === 'summer') {
-          // Diamond / petal shape
-          ctx.fillStyle = p.color
-          ctx.shadowBlur = 14
-          ctx.shadowColor = p.color
+          // Full 5-petal blossom — giant pink flowers, varied sizes
+          const petalColors = ['#FFB7C5', '#FF80AA', '#FFDDE1', '#FF93B0', '#FFC0CB', '#FFE4EC']
+          const centerColors = ['#FFD700', '#FFE066', '#FFAA00']
+          const pColor = petalColors[Math.floor(p.x * 6.1) % petalColors.length]
+          const cColor = centerColors[Math.floor(p.y * 3.1) % centerColors.length]
+          const angle0 = (p.life * 0.03) % (Math.PI * 2) // slow rotation as they fall
+
+          ctx.shadowBlur = 18
+          ctx.shadowColor = '#FFB7C5'
+
+          // Draw 5 petals
+          for (let petal = 0; petal < 5; petal++) {
+            const angle = angle0 + (petal * Math.PI * 2) / 5
+            const px = p.x + Math.cos(angle) * p.size * 0.65
+            const py = p.y + Math.sin(angle) * p.size * 0.65
+            ctx.fillStyle = pColor
+            ctx.beginPath()
+            ctx.ellipse(px, py, p.size * 0.45, p.size * 0.7, angle, 0, Math.PI * 2)
+            ctx.fill()
+          }
+          // Centre dot
+          ctx.shadowBlur = 8
+          ctx.fillStyle = cColor
           ctx.beginPath()
-          ctx.moveTo(p.x, p.y - p.size)
-          ctx.lineTo(p.x + p.size * 0.6, p.y)
-          ctx.lineTo(p.x, p.y + p.size)
-          ctx.lineTo(p.x - p.size * 0.6, p.y)
-          ctx.closePath()
+          ctx.arc(p.x, p.y, p.size * 0.28, 0, Math.PI * 2)
           ctx.fill()
         } else {
           // Default glitter: filled circle with inner highlight
