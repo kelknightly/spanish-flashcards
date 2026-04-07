@@ -210,11 +210,24 @@ export function ReviewView() {
     }
   }, [currentIdx, cards.length])
 
+  // When the card is showing results, Enter should advance to the next card
+  // from anywhere on the page — no need to click Next Card with the mouse.
+  useEffect(() => {
+    if (cardState !== 'result') return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        nextCard()
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [cardState, nextCard])
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       if (cardState === 'input') submitAnswer()
-      else if (cardState === 'result') nextCard()
     }
   }
 

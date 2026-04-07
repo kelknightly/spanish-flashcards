@@ -98,11 +98,11 @@ const TYPE_INSTRUCTIONS: Record<string, string> = {
   'verbs-present':
     'Extract exactly 10 verbs conjugated in the present tense (presente de indicativo) as they appear in the text.',
   'verbs-perfect':
-    'Extract exactly 10 verbs conjugated in the pretérito perfecto compuesto (present perfect) as they appear in the text. Each entry must be the full two-word form: the conjugated auxiliary haber (he/has/ha/hemos/habéis/han) followed immediately by the past participle (e.g. "he caminado", "ha llegado", "hemos visto"). The "spanish" field must contain the complete two-word combination exactly as it appears in the text.',
+    'Extract exactly 10 verbs conjugated in the pretérito perfecto compuesto (present perfect) as they appear in the text. Each entry must be the full two-word form: the PRESENT-TENSE auxiliary haber (he/has/ha/hemos/habéis/han) followed immediately by the past participle (e.g. "he caminado", "ha llegado", "hemos visto"). Do NOT include pluperfect indicative forms (había/habías/habían/habíamos + participle) or pluperfect subjunctive forms (hubiera/hubieras/hubiera/hubiéramos + participle) — those belong in verbs-imperfect and verbs-subjunctive respectively. The past participle alone (e.g. "caminado", "querido") is never a valid card; always require the full two-word present-perfect form. The "spanish" field must contain the complete two-word combination exactly as it appears in the text.'
   'verbs-preterite':
     'Extract exactly 10 verbs conjugated in the preterite past tense (pretérito indefinido) as they appear in the text.',
   'verbs-imperfect':
-    'Extract exactly 10 verbs conjugated in the imperfect past tense (pretérito imperfecto) as they appear in the text.',
+    'Extract exactly 10 verbs conjugated in the imperfect INDICATIVE tense (pretérito imperfecto de indicativo) as they appear in the text. This is indicative mood only — do NOT include imperfect subjunctive forms such as hubiera, tuviera, dijera, fuera, pudiera, quisiera, etc. Those belong in the subjunctive deck. Example valid forms: hablaba, comían, era, tenía, vivía, había.'
   'verbs-future':
     'Extract exactly 10 verbs conjugated in the future tense (futuro simple) as they appear in, or that are thematically relevant to, the text.',
   'verbs-conditional':
@@ -110,7 +110,7 @@ const TYPE_INSTRUCTIONS: Record<string, string> = {
   'verbs-imperative':
     'Extract exactly 10 verbs conjugated in the imperative mood (imperativo) as they appear in, or that are thematically relevant to, the text.',
   'verbs-subjunctive':
-    'Extract exactly 10 verbs conjugated in the subjunctive mood (subjuntivo) as they appear in, or that are thematically relevant to, the text.',
+    'Extract exactly 10 verbs conjugated in the subjunctive mood (subjuntivo) as they appear in, or that are thematically relevant to, the text. Include BOTH present subjunctive (e.g. hable, tenga, sea, vaya) AND imperfect subjunctive (e.g. hubiera, tuviera, dijera, fuera, pudiera). Imperfect subjunctive forms such as hubiera belong here and nowhere else.'
   'adjectives':
     'Extract exactly 10 adjectives (adjetivos) that appear in or are directly relevant to the text. Provide the masculine singular form as the headword.',
   'pronoun-composites':

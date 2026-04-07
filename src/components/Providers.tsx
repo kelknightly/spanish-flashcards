@@ -4,7 +4,6 @@ import { type ReactNode } from 'react'
 import { isSupabaseConfigured, envDiagnostic } from '@/lib/supabase'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { CardDirectionProvider } from '@/contexts/CardDirectionContext'
-import { ThemeProvider } from '@/contexts/ThemeContext'
 
 function SetupMessage() {
   return (
@@ -30,5 +29,5 @@ export function Providers({ children }: { children: ReactNode }) {
   if (!isSupabaseConfigured) {
     return <SetupMessage />
   }
-  return <ThemeProvider><AuthProvider><CardDirectionProvider>{children}</CardDirectionProvider></AuthProvider></ThemeProvider>
+  return <AuthProvider><CardDirectionProvider>{children}</CardDirectionProvider></AuthProvider>
 }

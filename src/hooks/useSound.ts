@@ -7,7 +7,7 @@ const STORAGE_KEY = 'sf_sound_enabled'
 const SOUND_CONFIG = {
   correct:  { src: '/sounds/correct.wav',  volume: 0.7 },
   wrong:    { src: '/sounds/wrong.wav',    volume: 0.7 },
-  complete: { src: '/sounds/complete.wav', volume: 0.6 },
+  complete: { src: '/sounds/complete-v2.mp3', volume: 0.6 },
 } as const
 
 type SoundType = keyof typeof SOUND_CONFIG

@@ -38,13 +38,13 @@ const model = genAI.getGenerativeModel({
 // What each subcategory expects, in Gemini-friendly description
 const SUBCATEGORY_RULES: Record<string, string> = {
   'verbs-present':     'Spanish present indicative (presente de indicativo). E.g. habla, comen, soy, voy, tiene.',
-  'verbs-perfect':     'Spanish present perfect (pretérito perfecto compuesto). Full two-word form: conjugated haber + past participle. E.g. he hablado, ha comido, hemos visto, han ido.',
+  'verbs-perfect':     'Spanish present perfect (pretérito perfecto compuesto). Full two-word form: PRESENT-TENSE conjugated haber (he/has/ha/hemos/habéis/han) + past participle. E.g. he hablado, ha comido, hemos visto, han ido. Do NOT accept pluperfect indicative (había/habían + participle) or pluperfect subjunctive (hubiera/hubiéramos + participle) — those belong in verbs-imperfect and verbs-subjunctive respectively. A bare past participle alone (e.g. caminado, querido) is also invalid here.',
   'verbs-preterite':   'Spanish preterite (pretérito indefinido / pretérito perfecto simple). E.g. habló, comieron, fue, tuvo.',
-  'verbs-imperfect':   'Spanish imperfect (pretérito imperfecto). E.g. hablaba, comían, era, tenía, vivía.',
+  'verbs-imperfect':   'Spanish imperfect INDICATIVE (pretérito imperfecto de indicativo). E.g. hablaba, comían, era, tenía, vivía, había. Indicative mood only — do NOT accept imperfect subjunctive forms such as hubiera, tuviera, dijera, fuera, pudiera, quisiera. Those belong in verbs-subjunctive.',
   'verbs-future':      'Spanish future indicative (futuro simple). E.g. hablará, comeremos, será, tendrán.',
   'verbs-conditional': 'Spanish conditional (condicional simple). E.g. hablaría, comeríamos, sería, tendría.',
   'verbs-imperative':  'Spanish imperative mood (imperativo). E.g. habla, comed, ve, vengan, no hagas.',
-  'verbs-subjunctive': 'Spanish subjunctive mood (subjuntivo). E.g. hable, coman, sea, tenga, vaya.',
+  'verbs-subjunctive': 'Spanish subjunctive mood (subjuntivo), both present and imperfect subjunctive. E.g. hable, coman, sea, tenga, vaya (present subj.); hubiera, tuviera, dijera, fuera, pudiera (imperfect subj.).',
   'nouns':             'Spanish noun (sustantivo), optionally with article. E.g. la casa, el perro, un libro.',
 }
 
