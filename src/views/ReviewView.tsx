@@ -211,13 +211,18 @@ export function ReviewView() {
     }
   }, [currentIdx, cards.length])
 
-  // When the card flips to the result, focus the Next Card button so Enter
-  // activates it immediately — no mouse needed.
+  // Global Enter handler so Next Card works regardless of which element has focus
   useEffect(() => {
-    if (!flipped) return
-    const t = setTimeout(() => nextButtonRef.current?.focus(), 300)
-    return () => clearTimeout(t)
-  }, [flipped])
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' || e.shiftKey) return
+      if (cardState === 'result') {
+        e.preventDefault()
+        nextCard()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [cardState, nextCard])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {

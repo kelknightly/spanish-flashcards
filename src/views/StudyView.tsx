@@ -401,11 +401,23 @@ export function StudyView({ deckId, bookNumber, chapterNumber, types }: Props) {
     setTimeout(() => inputRef.current?.focus(), 200)
   }, [allCards, progressKey])
 
+  // Global Enter handler so Next Card works regardless of which element has focus
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' || e.shiftKey) return
+      if (cardState === 'result') {
+        e.preventDefault()
+        nextCard()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [cardState, nextCard])
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       if (cardState === 'input') submitAnswer()
-      else if (cardState === 'result') nextCard()
     }
   }
 
