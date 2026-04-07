@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 const STORAGE_KEY = 'sf_sound_enabled'
 
 const SOUND_CONFIG = {
-  correct: { src: '/sounds/correct.wav', volume: 0.7 },
+  correct: { src: '/sounds/complete-v2.mp3', volume: 0.7 },
   wrong:   { src: '/sounds/wrong.wav',   volume: 0.7 },
 } as const
 

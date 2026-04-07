@@ -49,17 +49,24 @@ export async function GET(
   const { data: progressRows } = vocabTermIds.length
     ? await sb
         .from('card_progress')
-        .select('vocab_term_id')
+        .select('vocab_term_id, interval_days, mastered_at')
         .eq('user_id', user.id)
         .in('vocab_term_id', vocabTermIds)
     : { data: [] }
 
-  const seenTermIds = new Set((progressRows ?? []).map((r) => r.vocab_term_id))
+  const progressByTermId = new Map(
+    (progressRows ?? []).map((r) => [r.vocab_term_id, r])
+  )
 
-  const taggedCards = (cards ?? []).map((c) => ({
-    ...c,
-    isNew: !seenTermIds.has(c.vocab_term_id),
-  }))
+  const taggedCards = (cards ?? []).map((c) => {
+    const prog = progressByTermId.get(c.vocab_term_id)
+    return {
+      ...c,
+      isNew: !prog,
+      interval_days: prog?.interval_days ?? 0,
+      mastered_at: prog?.mastered_at ?? null,
+    }
+  })
 
   return NextResponse.json({
     deck,

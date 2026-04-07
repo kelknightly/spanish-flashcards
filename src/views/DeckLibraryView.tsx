@@ -35,7 +35,11 @@ function LibraryContent() {
   // ── Nemesis cards ──────────────────────────────────────────
   type NemesisCard = { vocab_term_id: string; spanish_term: string; english_answer: string; wrong_count: number; total_reviews: number }
   const [nemesisCards, setNemesisCards] = useState<NemesisCard[]>([])
-  const [nemesisOpen, setNemesisOpen] = useState(true)
+  const [nemesisOpen, setNemesisOpen] = useState(() => {
+    if (typeof window === 'undefined') return true
+    const saved = localStorage.getItem('nemesisOpen')
+    return saved === null ? true : saved === 'true'
+  })
 
   useEffect(() => {
     if (!session?.access_token) return
@@ -79,7 +83,7 @@ function LibraryContent() {
       {nemesisCards.length >= 3 && (
         <div className="shrink-0 mx-4 mt-1 mb-1">
           <button
-            onClick={() => setNemesisOpen((o) => !o)}
+            onClick={() => setNemesisOpen((o) => { const next = !o; localStorage.setItem('nemesisOpen', String(next)); return next })}}
             className="flex items-center gap-2 text-xs font-semibold text-neon-pink/80 hover:text-neon-pink transition-colors w-full py-1.5"
           >
             <span>🗡️ Nemesis Words</span>

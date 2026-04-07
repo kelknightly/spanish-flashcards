@@ -23,6 +23,8 @@ interface Card {
   position: number
   vocab_term_id: string
   isNew: boolean
+  interval_days: number
+  mastered_at: string | null
   direction: 'es-to-en' | 'en-to-es'
 }
 
@@ -116,6 +118,8 @@ export function StudyView({ deckId, bookNumber, chapterNumber, types }: Props) {
   const [errorMsg, setErrorMsg] = useState('')
   const [deck, setDeck] = useState<Deck | null>(null)
   const [cards, setCards] = useState<Card[]>([])
+  const [skippedMasteredCount, setSkippedMasteredCount] = useState(0)
+  const [allCards, setAllCards] = useState<Card[]>([])  // unfiltered set
 
   // Per-card state
   const [currentIdx, setCurrentIdx] = useState(0)
@@ -180,6 +184,18 @@ export function StudyView({ deckId, bookNumber, chapterNumber, types }: Props) {
             direction: sessionDirection.current,
           }))
 
+          // For regular (non-mixed) decks, skip mastered cards to avoid repeating
+          // words the user already knows well across chapters.
+          const isMixedDeck = deckId === 'mixed'
+          const eligible = isMixedDeck
+            ? fetched
+            : fetched.filter((c) => !c.mastered_at)
+          // If every card is mastered, fall back to showing all so the deck isn't empty
+          const useEligible = eligible.length > 0 ? eligible : fetched
+          const skipped = isMixedDeck ? 0 : fetched.length - useEligible.length
+          setSkippedMasteredCount(skipped)
+          setAllCards(fetched)
+
           // Try to restore saved progress for this deck
           const saved = progressKey ? localStorage.getItem(progressKey) : null
           if (saved) {
@@ -199,8 +215,8 @@ export function StudyView({ deckId, bookNumber, chapterNumber, types }: Props) {
             }
           }
 
-          // Fresh session — shuffle cards
-          const shuffled = [...fetched]
+          // Fresh session — shuffle eligible cards
+          const shuffled = [...useEligible]
           for (let i = shuffled.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
@@ -360,6 +376,30 @@ export function StudyView({ deckId, bookNumber, chapterNumber, types }: Props) {
     }
     advance()
   }, [currentIdx, cards, play, progressKey])
+
+  const studyAll = useCallback(() => {
+    // Re-include all cards (mastered + unmastered), clear saved progress
+    if (progressKey) localStorage.removeItem(progressKey)
+    const shuffled = [...allCards]
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+    }
+    if (progressKey) {
+      localStorage.setItem(progressKey, JSON.stringify({ orderedIds: shuffled.map((c) => c.id), idx: 0 }))
+    }
+    setSkippedMasteredCount(0)
+    setCards(shuffled)
+    setCurrentIdx(0)
+    setCorrect(0)
+    setIncorrect(0)
+    setCardState('input')
+    setAnswer('')
+    setShowSentence(false)
+    setFlipped(false)
+    setEvalResult(null)
+    setTimeout(() => inputRef.current?.focus(), 200)
+  }, [allCards, progressKey])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -602,6 +642,21 @@ export function StudyView({ deckId, bookNumber, chapterNumber, types }: Props) {
           style={{ width: `${((currentIdx) / total) * 100}%` }}
         />
       </div>
+
+      {/* Mastered-words skip banner */}
+      {skippedMasteredCount > 0 && (
+        <div className="w-full max-w-xl mx-auto flex items-center justify-between gap-3 rounded-lg bg-white/5 border border-white/10 px-4 py-2 text-xs text-white/50">
+          <span>
+            {skippedMasteredCount} mastered word{skippedMasteredCount !== 1 ? 's' : ''} skipped
+          </span>
+          <button
+            onClick={studyAll}
+            className="text-neon-blue hover:text-neon-blue/80 font-semibold transition-colors"
+          >
+            Study all
+          </button>
+        </div>
+      )}
 
       {/* Flip card */}
       <div className="flex-1 flex items-center justify-center">
