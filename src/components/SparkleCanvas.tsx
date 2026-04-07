@@ -162,7 +162,18 @@ export function SparkleCanvas() {
       rainZones.push({ rect, age: 0, duration: 90 })
     })
 
+    // Track last theme so we can flush stale particles on switch
+    let lastTheme = themeRef.current
+
     const draw = () => {
+      // Flush old particles immediately when theme switches —
+      // otherwise old glitter colors linger in the buffer drawn as wrong shapes
+      if (themeRef.current !== lastTheme) {
+        lastTheme = themeRef.current
+        particles.length = 0
+        rainZones.length = 0
+      }
+
       // Only fully pause (clear + skip) in glitter mode — themed trails always run
       if (pausedRef.current && themeRef.current === 'glitter') {
         particles.length = 0
@@ -217,6 +228,14 @@ export function SparkleCanvas() {
         }
 
         const t = themeRef.current
+
+        // Force particle color to always match current theme palette
+        // (guards against any residual particles from a previous theme)
+        if (t === 'winter' && !COLORS_WINTER.includes(p.color)) {
+          p.color = COLORS_WINTER[Math.floor(Math.random() * COLORS_WINTER.length)]
+        } else if (t === 'summer' && !COLORS_SUMMER.includes(p.color)) {
+          p.color = COLORS_SUMMER[Math.floor(Math.random() * COLORS_SUMMER.length)]
+        }
 
         ctx.save()
         ctx.globalAlpha = alpha

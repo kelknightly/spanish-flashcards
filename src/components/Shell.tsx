@@ -66,7 +66,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const themeLabels: Record<Theme, string> = { glitter: 'Glitter', winter: 'Winter', summer: 'Summer' }
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex h-screen flex-col overflow-hidden">
       {/* ── Ambient theme layers (desktop only — too heavy for mobile) ── */}
       {isDesktop && theme === 'winter' && <SnowLayer />}
       {isDesktop && theme === 'summer' && <SunraysLayer />}
@@ -166,7 +166,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </header>
 
       {/* ── Main content ───────────────────────────────────────── */}
-      <main className="flex-1 pb-20 md:pb-0">
+      <main className="flex-1 flex flex-col overflow-auto pb-20 md:pb-0">
         {children}
       </main>
 

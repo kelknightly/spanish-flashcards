@@ -57,7 +57,7 @@ function LibraryContent() {
   const setView = (v: string) => router.push(`/decks?view=${v}`)
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden">
 
       {/* ── Narnia quote of the day ───────────────────────────── */}
       {quote && (
