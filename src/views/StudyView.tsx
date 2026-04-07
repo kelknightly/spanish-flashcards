@@ -6,7 +6,6 @@ import { useAuth } from '@/contexts/AuthContext'
 import { SparkleContext } from '@/contexts/SparkleContext'
 import { useSound } from '@/hooks/useSound'
 import { CEFR_NOUN_NEXT, CEFR_NOUN_NEXT_LABEL } from '@/data/books'
-import { NEW_CARD_DAILY_CAP } from '@/lib/sm2'
 
 interface SourceSentence {
   es: string
@@ -123,12 +122,6 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
   // Requeue throttle: tracks how many times a card has been re-inserted this session
   const requeueCount = useRef<Map<string, number>>(new Map())
 
-  // Daily new card cap
-  const [newCardsIntroducedToday, setNewCardsIntroducedToday] = useState(0)
-  const [newCardDailyCap, setNewCardDailyCap] = useState(NEW_CARD_DAILY_CAP)
-  const newCardsThisSession = useRef(0)
-  const [showCapBanner, setShowCapBanner] = useState(false)
-
   // Next CEFR level navigation
   const [nextLevelDeckId, setNextLevelDeckId] = useState<string | null>(null)
 
@@ -159,8 +152,6 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
         } else {
           setDeck(data.deck)
           setCards(data.cards)
-          setNewCardsIntroducedToday(data.newCardsIntroducedToday ?? 0)
-          setNewCardDailyCap(data.newCardDailyCap ?? NEW_CARD_DAILY_CAP)
           setViewState('studying')
           setTimeout(() => inputRef.current?.focus(), 200)
         }
@@ -227,15 +218,6 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
           if (rect) triggerBurst(rect)
         })
 
-        // Track newly introduced cards toward the daily cap
-        if (result.wasNewCard) {
-          newCardsThisSession.current += 1
-          const totalNew = newCardsIntroducedToday + newCardsThisSession.current
-          if (totalNew >= newCardDailyCap && !showCapBanner) {
-            setShowCapBanner(true)
-          }
-        }
-
         // Learning steps: re-queue new cards for a second in-session exposure
         const step = learningProgress.current.get(currentCard.id) ?? -1
         if (step === -1) {
@@ -279,16 +261,11 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
     } catch {
       setCardState('input')
     }
-  }, [currentCard, session, answer, cardState, currentIdx, newCardsIntroducedToday, newCardDailyCap, showCapBanner, triggerBurst, play])
+  }, [currentCard, session, answer, cardState, currentIdx, triggerBurst, play])
 
   const nextCard = useCallback(() => {
     const advance = (fromIdx: number) => {
-      let next = fromIdx + 1
-      // Skip new cards if daily cap is reached
-      const capReached = newCardsIntroducedToday + newCardsThisSession.current >= newCardDailyCap
-      while (capReached && next < cards.length && cards[next]?.isNew) {
-        next++
-      }
+      const next = currentIdx + 1
       if (next >= cards.length) {
         play('complete')
         setViewState('complete')
@@ -303,7 +280,7 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
       }
     }
     advance(currentIdx)
-  }, [currentIdx, cards, newCardsIntroducedToday, newCardDailyCap, play])
+  }, [currentIdx, cards, play])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -508,23 +485,6 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
           </div>
         )}
       </div>
-
-      {/* Daily new card cap banner */}
-      {showCapBanner && (
-        <div className="w-full max-w-xl mx-auto flex items-start gap-3 rounded-xl border border-neon-gold/40 bg-neon-gold/10 px-4 py-3 text-sm">
-          <span className="text-neon-gold mt-0.5">⚡</span>
-          <div className="flex-1 text-left">
-            <p className="font-semibold text-neon-gold">Daily new card limit reached ({newCardDailyCap})</p>
-            <p className="text-white/50 text-xs mt-0.5">New cards are being skipped — due cards continue normally.</p>
-          </div>
-          <button
-            onClick={() => setShowCapBanner(false)}
-            className="text-white/30 hover:text-white/60 transition-colors text-xs mt-0.5"
-          >
-            ✕
-          </button>
-        </div>
-      )}
 
       {/* Progress bar */}
       <div className="w-full max-w-xl mx-auto h-1 rounded-full bg-white/10 overflow-hidden">
