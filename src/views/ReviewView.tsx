@@ -95,6 +95,7 @@ export function ReviewView() {
   const requeueCount = useRef<Map<string, number>>(new Map())
 
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const nextButtonRef = useRef<HTMLButtonElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const { triggerBurst } = useContext(SparkleContext)
   const { play } = useSound()
@@ -210,19 +211,13 @@ export function ReviewView() {
     }
   }, [currentIdx, cards.length])
 
-  // When the card is showing results, Enter should advance to the next card
-  // from anywhere on the page — no need to click Next Card with the mouse.
+  // When the card flips to the result, focus the Next Card button so Enter
+  // activates it immediately — no mouse needed.
   useEffect(() => {
-    if (cardState !== 'result') return
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault()
-        nextCard()
-      }
-    }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [cardState, nextCard])
+    if (!flipped) return
+    const t = setTimeout(() => nextButtonRef.current?.focus(), 300)
+    return () => clearTimeout(t)
+  }, [flipped])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -527,8 +522,9 @@ export function ReviewView() {
 
                   {/* Next button */}
                   <button
+                    ref={nextButtonRef}
                     onClick={nextCard}
-                    className="mt-auto w-full rounded-xl bg-neon-purple py-3 text-sm font-semibold text-white hover:opacity-90 transition-opacity"
+                    className="mt-auto w-full rounded-xl bg-neon-purple py-3 text-sm font-semibold text-white hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-white/40"
                   >
                     {currentIdx + 1 >= cards.length ? 'See Results' : 'Next Card →'}
                   </button>

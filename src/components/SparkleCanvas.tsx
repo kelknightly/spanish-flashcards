@@ -83,14 +83,14 @@ export function SparkleCanvas() {
         size: isWinter
           ? Math.random() * 9 + 5          // 5–14px — big icy shards
           : isSummer
-          ? Math.random() * 18 + 8         // 8–26px — giant pink blossoms
+          ? Math.random() * 5 + 3          // 3–8px — small blossoms
           : Math.random() * 4.5 + 2.5,     // original glitter size
         color: randomColor(),
         life: 0,
         maxLife: isWinter
           ? Math.floor(Math.random() * 30 + 55) // 55–85 frames — linger like snow
           : isSummer
-          ? Math.floor(Math.random() * 40 + 60) // 60–100 frames — petals drift long
+          ? Math.floor(Math.random() * 15 + 25) // 25–40 frames — petals fade quickly
           : Math.floor(Math.random() * 20 + 40),
         isBurst: false,
       })
@@ -138,11 +138,10 @@ export function SparkleCanvas() {
     }
 
     const onMouseMove = (e: MouseEvent) => {
-      // Glitter trail respects the pause toggle; winter/summer trails are always on
-      if (pausedRef.current && themeRef.current === 'glitter') return
-      // Spawn more particles for summer (lush petal trail)
-      const base = themeRef.current === 'summer' ? 5 : 3
-      const count = Math.floor(Math.random() * 3) + base
+      if (pausedRef.current) return
+      // Keep spawn count consistent across themes
+      const base = 2
+      const count = Math.floor(Math.random() * 2) + base
       for (let i = 0; i < count; i++) spawnTrailParticle(e.clientX, e.clientY)
     }
     window.addEventListener('mousemove', onMouseMove)
@@ -174,8 +173,7 @@ export function SparkleCanvas() {
         rainZones.length = 0
       }
 
-      // Only fully pause (clear + skip) in glitter mode — themed trails always run
-      if (pausedRef.current && themeRef.current === 'glitter') {
+      if (pausedRef.current) {
         particles.length = 0
         rainZones.length = 0
         ctx.clearRect(0, 0, canvas.width, canvas.height)
@@ -255,31 +253,20 @@ export function SparkleCanvas() {
             ctx.stroke()
           }
         } else if (t === 'summer') {
-          // Full 5-petal blossom — giant pink flowers, varied sizes
-          const petalColors = ['#FFB7C5', '#FF80AA', '#FFDDE1', '#FF93B0', '#FFC0CB', '#FFE4EC']
-          const centerColors = ['#FFD700', '#FFE066', '#FFAA00']
-          const pColor = petalColors[Math.floor(p.x * 6.1) % petalColors.length]
-          const cColor = centerColors[Math.floor(p.y * 3.1) % centerColors.length]
-          const angle0 = (p.life * 0.03) % (Math.PI * 2) // slow rotation as they fall
-
-          ctx.shadowBlur = 18
-          ctx.shadowColor = '#FFB7C5'
-
-          // Draw 5 petals
-          for (let petal = 0; petal < 5; petal++) {
-            const angle = angle0 + (petal * Math.PI * 2) / 5
-            const px = p.x + Math.cos(angle) * p.size * 0.65
-            const py = p.y + Math.sin(angle) * p.size * 0.65
-            ctx.fillStyle = pColor
-            ctx.beginPath()
-            ctx.ellipse(px, py, p.size * 0.45, p.size * 0.7, angle, 0, Math.PI * 2)
-            ctx.fill()
-          }
-          // Centre dot
-          ctx.shadowBlur = 8
-          ctx.fillStyle = cColor
+          // Simple circle blossom — pink/peach dot with a small yellow centre
+          const petalColors = ['#FFB7C5', '#FF80AA', '#FF93B0', '#FFC0CB', '#FFD1DC']
+          const pColor = petalColors[Math.floor((p.x + p.y) * 0.05) % petalColors.length]
+          ctx.shadowBlur = 6
+          ctx.shadowColor = pColor
+          ctx.fillStyle = pColor
           ctx.beginPath()
-          ctx.arc(p.x, p.y, p.size * 0.28, 0, Math.PI * 2)
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
+          ctx.fill()
+          // Tiny yellow centre
+          ctx.shadowBlur = 0
+          ctx.fillStyle = '#FFD700'
+          ctx.beginPath()
+          ctx.arc(p.x, p.y, p.size * 0.3, 0, Math.PI * 2)
           ctx.fill()
         } else {
           // Default glitter: filled circle with inner highlight

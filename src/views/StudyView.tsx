@@ -148,6 +148,9 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
   const { triggerBurst } = useContext(SparkleContext)
   const { play } = useSound()
 
+  // Progress persistence key (not used for 'mixed' deck)
+  const progressKey = deckId !== 'mixed' ? `deck-progress-${deckId}` : null
+
   // Load deck
   useEffect(() => {
     if (!session) return
@@ -165,7 +168,40 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
           setViewState('error')
         } else {
           setDeck(data.deck)
-          setCards((data.cards as Omit<Card, 'direction'>[]).map((c) => ({ ...c, direction: sessionDirection.current })))
+          const fetched = (data.cards as Omit<Card, 'direction'>[]).map((c) => ({
+            ...c,
+            direction: sessionDirection.current,
+          }))
+
+          // Try to restore saved progress for this deck
+          const saved = progressKey ? localStorage.getItem(progressKey) : null
+          if (saved) {
+            try {
+              const { orderedIds, idx } = JSON.parse(saved) as { orderedIds: string[]; idx: number }
+              const byId = Object.fromEntries(fetched.map((c) => [c.id, c]))
+              const restored = orderedIds.map((id) => byId[id]).filter(Boolean) as Card[]
+              if (restored.length > 0 && idx < restored.length) {
+                setCards(restored)
+                setCurrentIdx(idx)
+                setViewState('studying')
+                setTimeout(() => inputRef.current?.focus(), 200)
+                return
+              }
+            } catch {
+              // corrupted — fall through to fresh shuffle
+            }
+          }
+
+          // Fresh session — shuffle cards
+          const shuffled = [...fetched]
+          for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+          }
+          if (progressKey) {
+            localStorage.setItem(progressKey, JSON.stringify({ orderedIds: shuffled.map((c) => c.id), idx: 0 }))
+          }
+          setCards(shuffled)
           setViewState('studying')
           setTimeout(() => inputRef.current?.focus(), 200)
         }
@@ -174,7 +210,7 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
         setErrorMsg('Failed to load deck.')
         setViewState('error')
       })
-  }, [deckId, session, bookNumber, chapterNumber])
+  }, [deckId, session, bookNumber, chapterNumber]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // When the session completes, look up the next CEFR level deck (if applicable)
   useEffect(() => {
@@ -282,6 +318,8 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
     const advance = () => {
       const next = currentIdx + 1
       if (next >= cards.length) {
+        // Session complete — clear saved progress
+        if (progressKey) localStorage.removeItem(progressKey)
         play('complete')
         setViewState('complete')
         // Check personal best (fire-and-forget)
@@ -301,6 +339,10 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
             .catch(() => {})
         }
       } else {
+        // Persist progress so the user can resume later
+        if (progressKey) {
+          localStorage.setItem(progressKey, JSON.stringify({ orderedIds: cards.map((c) => c.id), idx: next }))
+        }
         setCurrentIdx(next)
         setCardState('input')
         setAnswer('')
@@ -311,7 +353,7 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
       }
     }
     advance()
-  }, [currentIdx, cards, play])
+  }, [currentIdx, cards, play, progressKey])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -413,7 +455,16 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
               onClick={() => {
                 learningProgress.current.clear()
                 requeueCount.current.clear()
-                setCards(cards)
+                // Re-shuffle for the new session
+                const reshuffled = [...cards]
+                for (let i = reshuffled.length - 1; i > 0; i--) {
+                  const j = Math.floor(Math.random() * (i + 1));
+                  [reshuffled[i], reshuffled[j]] = [reshuffled[j], reshuffled[i]]
+                }
+                if (progressKey) {
+                  localStorage.setItem(progressKey, JSON.stringify({ orderedIds: reshuffled.map((c) => c.id), idx: 0 }))
+                }
+                setCards(reshuffled)
                 setCurrentIdx(0)
                 setCorrect(0)
                 setIncorrect(0)
@@ -492,10 +543,24 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
   const scorePct =
     currentIdx > 0 ? Math.round((correct / currentIdx) * 100) : null
 
+  const handleBackToChapter = () => {
+    const b = deck?.book_number
+    const c = deck?.chapter_number
+    if (b && c) router.push(`/decks?view=chapter&book=${b}&chapter=${c}`)
+    else router.push('/decks')
+  }
+
   return (
     <div className="flex flex-col min-h-screen p-4 md:p-8 gap-6">
       {/* Deck title */}
-      <div className="text-center">
+      <div className="text-center relative">
+        <button
+          onClick={handleBackToChapter}
+          className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-xs text-white/35 hover:text-white/70 transition-colors"
+        >
+          <span>←</span>
+          <span>{deck?.book_number && deck?.chapter_number ? `Bk ${deck.book_number} · Ch ${deck.chapter_number}` : 'Decks'}</span>
+        </button>
         <h1 className="text-lg font-semibold text-white/70">{deck?.name}</h1>
         <p className="text-xs text-white/30 mt-0.5">
           Card {currentIdx + 1} of {total}
