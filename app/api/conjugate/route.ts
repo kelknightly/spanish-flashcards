@@ -34,17 +34,21 @@ export async function POST(request: NextRequest) {
 
   const model = getModel()
 
-  const prompt = `Return ONLY a JSON array of strings (no markdown, no code fences, no explanation) containing every conjugated surface form of the Spanish verb "${infinitive}".
+  const prompt = `Return ONLY a JSON array of objects (no markdown, no code fences, no explanation) where each object represents one conjugated surface form of the Spanish verb "${infinitive}".
 
-Include:
-- All indicative tenses: present, preterite, imperfect, future, conditional
-- All subjunctive tenses: present subjunctive, imperfect subjunctive (both -ra and -se variants)
-- Imperative (affirmative and negative, all persons)
+Each object must have exactly two string fields:
+- "form": the conjugated form, lowercase
+- "translation": a short English label in the format "Tense: subject + meaning", e.g. "Future: he/she/it will have", "Imperfect: I/he/she/it had", "Present subjunctive: you have", "Gerund", "Past participle (feminine plural)", "Infinitive"
+
+Include ALL of these:
+- All indicative tenses: present, preterite, imperfect, future, conditional (all persons)
+- All subjunctive tenses: present subjunctive, imperfect subjunctive -ra forms, imperfect subjunctive -se forms (all persons)
+- Imperative (affirmative and negative, all applicable persons)
 - The infinitive itself
 - The gerund (present participle)
-- The past participle (all gender/number forms: -ado/-ada/-ados/-adas or -ido/-ida etc.)
+- The past participle (all gender/number forms)
 
-All forms should be lowercase strings. Do not include reflexive pronouns separately. Do not include compound tenses. No duplicates.
+Do not include reflexive pronouns. Do not include compound tenses. No duplicate form+translation pairs.
 
 Respond with ONLY the JSON array, nothing else.`
 
@@ -68,12 +72,26 @@ Respond with ONLY the JSON array, nothing else.`
     return NextResponse.json({ error: 'Failed to parse conjugation response' }, { status: 502 })
   }
 
-  if (!Array.isArray(forms) || !forms.every((f) => typeof f === 'string')) {
+  if (
+    !Array.isArray(forms) ||
+    !forms.every(
+      (f) =>
+        typeof f === 'object' &&
+        f !== null &&
+        typeof (f as Record<string, unknown>).form === 'string' &&
+        typeof (f as Record<string, unknown>).translation === 'string'
+    )
+  ) {
     return NextResponse.json({ error: 'Unexpected conjugation response format' }, { status: 502 })
   }
 
-  // Deduplicate and lowercase
-  const deduplicated = [...new Set((forms as string[]).map((f) => f.toLowerCase().trim()).filter(Boolean))]
+  type VerbFormEntry = { form: string; translation: string }
+
+  // Deduplicate by form (keep first occurrence)
+  const seen = new Set<string>()
+  const deduplicated = (forms as VerbFormEntry[])
+    .map((f) => ({ form: f.form.toLowerCase().trim(), translation: f.translation.trim() }))
+    .filter((f) => f.form && !seen.has(f.form) && seen.add(f.form))
 
   return NextResponse.json({ infinitive, forms: deduplicated })
 }

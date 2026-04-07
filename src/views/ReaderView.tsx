@@ -9,6 +9,11 @@ import { ChapterListPanel } from '@/components/library/ChapterListPanel'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
+interface VerbForm {
+  form: string        // lowercase surface form
+  translation: string // e.g. "Future: he/she/it will have"
+}
+
 interface TermAnnotation {
   term: string       // lowercase
   subcategory: string
@@ -146,14 +151,15 @@ function annotateText(
   text: string,
   terms: TermAnnotation[],
   activeSubcategories: Set<string>,
-  verbForms: string[] = []
+  verbForms: VerbForm[] = []
 ): Span[] {
   if (!text) return []
 
   // Verb search forms get highest priority — prepend them as special annotations
-  const verbAnnotations: TermAnnotation[] = verbForms.map((f) => ({
-    term: f,
+  const verbAnnotations: TermAnnotation[] = verbForms.map((vf) => ({
+    term: vf.form,
     subcategory: 'verb-search',
+    translation: vf.translation,
   }))
 
   // Sort longest first so multi-word terms take priority
@@ -222,7 +228,7 @@ function AnnotatedText({
   text: string
   terms: TermAnnotation[]
   activeSubcategories: Set<string>
-  verbForms: string[]
+  verbForms: VerbForm[]
 }) {
   const spans = useMemo(
     () => annotateText(text, terms, activeSubcategories, verbForms),
@@ -238,7 +244,7 @@ function AnnotatedText({
         const wordType = getWordType(span.subcategory)
         if (!wordType) return <span key={idx}>{span.text}</span>
         return (
-          <mark key={idx} className={`${wordType.spanClass} cursor-default`} title={span.translation ? `${span.translation} · ${wordType.label}` : wordType.label}>
+          <mark key={idx} className={`${wordType.spanClass} cursor-default`} title={span.subcategory === 'verb-search' ? (span.translation ?? wordType.label) : wordType.label}>
             {span.text}
           </mark>
         )
@@ -368,7 +374,7 @@ function ReaderContent() {
 
   // Verb search state — persists across chapter/book changes and navigation away
   const [verbSearchInput, setVerbSearchInput] = useState('')
-  const [verbForms, setVerbForms] = useState<string[]>([])
+  const [verbForms, setVerbForms] = useState<VerbForm[]>([])
   const [verbInfinitive, setVerbInfinitive] = useState<string | null>(null)
   const [isConjugating, setIsConjugating] = useState(false)
 
@@ -378,8 +384,15 @@ function ReaderContent() {
       const storedInfinitive = localStorage.getItem('reader-verb-infinitive')
       const storedForms = localStorage.getItem('reader-verb-forms')
       if (storedInfinitive && storedForms) {
-        setVerbInfinitive(storedInfinitive)
-        setVerbForms(JSON.parse(storedForms) as string[])
+        const parsed = JSON.parse(storedForms) as unknown[]
+        // Guard against old string[] format in localStorage
+        if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'object') {
+          setVerbInfinitive(storedInfinitive)
+          setVerbForms(parsed as VerbForm[])
+        } else {
+          localStorage.removeItem('reader-verb-infinitive')
+          localStorage.removeItem('reader-verb-forms')
+        }
       }
     } catch { /* ignore */ }
   }, [])
@@ -474,7 +487,7 @@ function ReaderContent() {
         body: JSON.stringify({ infinitive }),
       })
       if (res.ok) {
-        const data = await res.json() as { forms: string[]; infinitive: string }
+        const data = await res.json() as { forms: VerbForm[]; infinitive: string }
         setVerbForms(data.forms)
         setVerbInfinitive(data.infinitive)
         setVerbSearchInput('')
@@ -485,7 +498,7 @@ function ReaderContent() {
   }, [verbSearchInput, isConjugating, session])
 
   const handleVerbSearchClear = useCallback(() => {
-    setVerbForms([])
+    setVerbForms([] as VerbForm[])
     setVerbInfinitive(null)
     setVerbSearchInput('')
   }, [])
