@@ -57,49 +57,35 @@ export function AslanCameo({ streak, summoned = false, onDismiss }: AslanCameoPr
   if (!mounted || dismissed) return null
 
   return (
-    <>
-      {/* Backdrop */}
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
+    >
       <div
-        className="fixed inset-0 z-50 transition-opacity duration-500"
+        className="pointer-events-auto flex flex-col items-center gap-4 transition-all duration-700 ease-out cursor-pointer"
         style={{
-          background: 'rgba(0,0,0,0.75)',
-          backdropFilter: 'blur(4px)',
           opacity: shown ? 1 : 0,
+          transform: shown ? 'scale(1) translateY(0)' : 'scale(0.7) translateY(60px)',
         }}
         onClick={dismiss}
-      />
-
-      {/* Centred modal */}
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
+        title="Click to dismiss"
       >
-        <div
-          className="pointer-events-auto flex flex-col items-center gap-4 transition-all duration-700 ease-out cursor-pointer"
-          style={{
-            opacity: shown ? 1 : 0,
-            transform: shown ? 'scale(1) translateY(0)' : 'scale(0.7) translateY(60px)',
-          }}
-          onClick={dismiss}
-          title="Click to dismiss"
-        >
-          <img
-            src="/aslan.png"
-            alt="Aslan roars!"
-            className="w-[min(80vw,520px)] h-auto object-contain drop-shadow-2xl"
-            style={{ filter: 'drop-shadow(0 0 60px rgba(255,160,0,0.5))' }}
-          />
-          <div className="text-center">
-            <p className="text-neon-gold text-2xl font-bold tracking-wide"
-               style={{ textShadow: '0 0 20px rgba(255,184,0,0.8)' }}>
-              🦁 Aslan approves!
-            </p>
-            {streak > 0 && (
-              <p className="text-white/50 text-sm mt-1">{streak}-day streak 🔥</p>
-            )}
-            <p className="text-white/25 text-xs mt-2">click anywhere to dismiss</p>
-          </div>
+        <img
+          src="/aslan.png"
+          alt="Aslan roars!"
+          className="w-[min(80vw,520px)] h-auto object-contain drop-shadow-2xl"
+          style={{ filter: 'drop-shadow(0 0 60px rgba(255,160,0,0.5))' }}
+        />
+        <div className="text-center">
+          <p className="text-neon-gold text-2xl font-bold tracking-wide"
+             style={{ textShadow: '0 0 20px rgba(255,184,0,0.8)' }}>
+            🦁 Aslan approves!
+          </p>
+          {streak > 0 && (
+            <p className="text-white/50 text-sm mt-1">{streak}-day streak 🔥</p>
+          )}
+          <p className="text-white/25 text-xs mt-2">click anywhere to dismiss</p>
         </div>
       </div>
-    </>
+    </div>
   )
 }

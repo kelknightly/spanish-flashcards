@@ -138,7 +138,8 @@ export function SparkleCanvas() {
     }
 
     const onMouseMove = (e: MouseEvent) => {
-      if (pausedRef.current) return
+      // Glitter trail respects the pause toggle; winter/summer trails are always on
+      if (pausedRef.current && themeRef.current === 'glitter') return
       // Spawn more particles for summer (lush petal trail)
       const base = themeRef.current === 'summer' ? 5 : 3
       const count = Math.floor(Math.random() * 3) + base
@@ -162,7 +163,8 @@ export function SparkleCanvas() {
     })
 
     const draw = () => {
-      if (pausedRef.current) {
+      // Only fully pause (clear + skip) in glitter mode — themed trails always run
+      if (pausedRef.current && themeRef.current === 'glitter') {
         particles.length = 0
         rainZones.length = 0
         ctx.clearRect(0, 0, canvas.width, canvas.height)
