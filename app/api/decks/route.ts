@@ -20,6 +20,7 @@ interface DeckInput {
   version?: number
   cards: CardInput[]
   chatSessionId?: string
+  isCustom?: boolean
 }
 
 export async function POST(request: NextRequest) {
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
-  const { deckName, bookNumber, chapterNumber, category, subcategory, version, cards, chatSessionId } = body
+  const { deckName, bookNumber, chapterNumber, category, subcategory, version, cards, chatSessionId, isCustom } = body
 
   if (!deckName?.trim() || !cards?.length) {
     return NextResponse.json({ error: 'deckName and cards are required' }, { status: 400 })
@@ -60,6 +61,7 @@ export async function POST(request: NextRequest) {
       category: category ?? null,
       subcategory: subcategory ?? null,
       version: version ?? 1,
+      is_custom: isCustom ?? false,
     })
     .select('id')
     .single()
@@ -156,7 +158,7 @@ export async function GET(request: NextRequest) {
     .from('decks')
     .select(
       `id, name, book_number, chapter_number, category, subcategory,
-       version, is_system_generated, parent_deck_id,
+       version, is_system_generated, is_custom, parent_deck_id,
        created_at, last_studied_at, cards(count)`
     )
     .eq('user_id', user.id)
@@ -205,6 +207,7 @@ export async function GET(request: NextRequest) {
       subcategory: d.subcategory,
       version: d.version ?? 1,
       is_system_generated: d.is_system_generated ?? false,
+      is_custom: d.is_custom ?? false,
       parent_deck_id: d.parent_deck_id ?? null,
       created_at: d.created_at,
       last_studied_at: d.last_studied_at,

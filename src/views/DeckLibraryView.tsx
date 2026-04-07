@@ -8,6 +8,7 @@ import { BookListPanel } from '@/components/library/BookListPanel'
 import { ChapterListPanel } from '@/components/library/ChapterListPanel'
 import { ChapterDecksPanel } from '@/components/library/ChapterDecksPanel'
 import { TypeBrowseView } from '@/components/library/TypeBrowseView'
+import { CustomDecksView } from '@/components/library/CustomDecksView'
 
 function LibraryContent() {
   const router = useRouter()
@@ -110,7 +111,7 @@ function LibraryContent() {
           <button
             onClick={() => setView('chapter')}
             className={`px-3 py-1.5 transition-colors ${
-              view !== 'type'
+              view === 'chapter'
                 ? 'bg-neon-purple text-white'
                 : 'text-white/50 hover:text-white hover:bg-white/5'
             }`}
@@ -126,6 +127,16 @@ function LibraryContent() {
             }`}
           >
             By Type
+          </button>
+          <button
+            onClick={() => setView('custom')}
+            className={`px-3 py-1.5 transition-colors border-l border-white/15 ${
+              view === 'custom'
+                ? 'bg-neon-purple text-white'
+                : 'text-white/50 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            Custom
           </button>
         </div>
       </header>
@@ -146,6 +157,10 @@ function LibraryContent() {
       {view === 'type' ? (
         <div className="flex flex-1 overflow-hidden">
           <TypeBrowseView />
+        </div>
+      ) : view === 'custom' ? (
+        <div className="flex flex-1 overflow-hidden">
+          <CustomDecksView />
         </div>
       ) : (
         <div className="flex flex-1 overflow-hidden">

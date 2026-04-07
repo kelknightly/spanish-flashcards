@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { getBooks } from '@/data/books'
 import { BookListPanel } from '@/components/library/BookListPanel'
 import { ChapterListPanel } from '@/components/library/ChapterListPanel'
+import { WordAddPopover } from '@/components/WordAddPopover'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -231,19 +232,49 @@ function AnnotatedText({
   terms,
   activeSubcategories,
   verbForms,
+  onWordSelect,
 }: {
   text: string
   terms: TermAnnotation[]
   activeSubcategories: Set<string>
   verbForms: VerbForm[]
+  onWordSelect?: (selectedText: string, translation: string | null, subcategory: string | null, paragraph: string, anchor: { x: number; y: number }) => void
 }) {
   const spans = useMemo(
     () => annotateText(text, terms, activeSubcategories, verbForms),
     [text, terms, activeSubcategories, verbForms]
   )
 
+  const handleClick = useCallback((event: React.MouseEvent<HTMLParagraphElement>) => {
+    if (!onWordSelect) return
+
+    // Prefer an active text selection (drag or double-click)
+    const selection = window.getSelection()
+    const selText = selection?.toString().trim() ?? ''
+    if (selText.length > 0) {
+      selection?.removeAllRanges()
+      onWordSelect(selText, null, null, text, { x: event.clientX, y: event.clientY })
+      return
+    }
+
+    // Fall back to a single click on an annotated <mark>
+    const target = event.target as HTMLElement
+    if (target.tagName === 'MARK') {
+      const wordText = target.textContent?.trim() ?? ''
+      if (!wordText) return
+      const wordSubcategory = target.dataset.subcategory ?? null
+      const wordTranslation = wordSubcategory === 'verb-search'
+        ? (target.dataset.translation ?? null)
+        : null
+      onWordSelect(wordText, wordTranslation, wordSubcategory, text, { x: event.clientX, y: event.clientY })
+    }
+  }, [onWordSelect, text])
+
   return (
-    <p className="whitespace-pre-wrap leading-8 text-base md:text-[15px] text-white/85">
+    <p
+      className="whitespace-pre-wrap leading-8 text-base md:text-[15px] text-white/85"
+      onClick={onWordSelect ? handleClick : undefined}
+    >
       {spans.map((span, idx) => {
         if (span.subcategory === null) {
           return <span key={idx}>{span.text}</span>
@@ -251,7 +282,13 @@ function AnnotatedText({
         const wordType = getWordType(span.subcategory)
         if (!wordType) return <span key={idx}>{span.text}</span>
         return (
-          <mark key={idx} className={`${wordType.spanClass} cursor-default`} title={span.subcategory === 'verb-search' ? (span.translation ?? wordType.label) : wordType.label}>
+          <mark
+            key={idx}
+            className={`${wordType.spanClass} cursor-pointer`}
+            data-subcategory={span.subcategory}
+            data-translation={span.subcategory === 'verb-search' ? (span.translation ?? undefined) : undefined}
+            title={span.subcategory === 'verb-search' ? (span.translation ?? wordType.label) : wordType.label}
+          >
             {span.text}
           </mark>
         )
@@ -384,6 +421,26 @@ function ReaderContent() {
   const [verbForms, setVerbForms] = useState<VerbForm[]>([])
   const [verbInfinitive, setVerbInfinitive] = useState<string | null>(null)
   const [isConjugating, setIsConjugating] = useState(false)
+
+  // Word-add popover state
+  type WordPopover = {
+    text: string
+    translation: string | null
+    subcategory: string | null
+    paragraph: string
+    anchor: { x: number; y: number }
+  }
+  const [wordPopover, setWordPopover] = useState<WordPopover | null>(null)
+
+  const handleWordSelect = useCallback((
+    text: string,
+    translation: string | null,
+    subcategory: string | null,
+    paragraph: string,
+    anchor: { x: number; y: number }
+  ) => {
+    setWordPopover({ text, translation, subcategory, paragraph, anchor })
+  }, [])
 
   // Restore verb search from localStorage on mount (survives navigating away and back)
   useEffect(() => {
@@ -631,6 +688,7 @@ function ReaderContent() {
                 terms={terms}
                 activeSubcategories={activeSubcategories}
                 verbForms={verbForms}
+                onWordSelect={handleWordSelect}
               />
             ))}
           </div>
@@ -714,6 +772,7 @@ function ReaderContent() {
                         terms={terms}
                         activeSubcategories={activeSubcategories}
                         verbForms={verbForms}
+                        onWordSelect={handleWordSelect}
                       />
                     ))}
                   </div>
@@ -723,6 +782,20 @@ function ReaderContent() {
           )}
         </div>
       </div>
+
+      {/* ── Word-add popover ──────────────────────────────── */}
+      {wordPopover && (
+        <WordAddPopover
+          selectedText={wordPopover.text}
+          translation={wordPopover.translation}
+          subcategory={wordPopover.subcategory}
+          paragraph={wordPopover.paragraph}
+          bookNumber={selectedBook}
+          chapterNumber={selectedChapter}
+          anchor={wordPopover.anchor}
+          onClose={() => setWordPopover(null)}
+        />
+      )}
     </>
   )
 }
