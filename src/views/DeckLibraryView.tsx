@@ -83,7 +83,7 @@ function LibraryContent() {
       {nemesisCards.length >= 3 && (
         <div className="shrink-0 mx-4 mt-1 mb-1">
           <button
-            onClick={() => setNemesisOpen((o) => { const next = !o; localStorage.setItem('nemesisOpen', String(next)); return next })}}
+            onClick={() => setNemesisOpen((o) => { const next = !o; localStorage.setItem('nemesisOpen', String(next)); return next })}
             className="flex items-center gap-2 text-xs font-semibold text-neon-pink/80 hover:text-neon-pink transition-colors w-full py-1.5"
           >
             <span>🗡️ Nemesis Words</span>

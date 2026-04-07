@@ -711,15 +711,7 @@ export function StudyView({ deckId, bookNumber, chapterNumber, types }: Props) {
                   </div>
                 )}
 
-                {/* Conjugate button — only for verb decks */}
-                {deck?.subcategory?.startsWith('verbs') && currentCard && (
-                  <button
-                    onClick={() => setConjPanelWord({ surfaceForm: currentCard.spanish_term, subcategory: deck.subcategory! })}
-                    className="text-xs text-white/30 hover:text-neon-purple transition-colors border border-white/10 hover:border-neon-purple/40 rounded-full px-3 py-1"
-                  >
-                    Conjugate
-                  </button>
-                )}
+
               </div>
 
               {/* Input area */}
