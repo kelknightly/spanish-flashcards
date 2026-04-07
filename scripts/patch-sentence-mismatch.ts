@@ -121,6 +121,28 @@ function termInSentence(sentence: string, term: string): boolean {
 }
 
 /**
+ * Return a verb stem for matching conjugated Spanish verbs in chapter text.
+ * Strips common future, conditional, preterite, and other endings to
+ * approximate the root used by `highlightTerm` (first word minus last 2 chars,
+ * minimum 3 chars).
+ */
+function verbStem(term: string): string | null {
+  const firstWord = term.split(/\s+/)[0]
+  if (firstWord.length < 4) return null
+  const stemLen = Math.max(3, firstWord.length - 2)
+  return firstWord.slice(0, stemLen).toLowerCase()
+}
+
+/** Like termInSentence but also tries the verb stem prefix. */
+function termOrStemInSentence(sentence: string, term: string): boolean {
+  if (termInSentence(sentence, term)) return true
+  const stem = verbStem(term)
+  if (!stem) return false
+  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(escape(stem) + '\\S*', 'i').test(sentence)
+}
+
+/**
  * Split chapter text into individual sentences using Spanish sentence
  * boundary heuristics (handles ¿, ¡, abbreviations, ellipsis, guillemets).
  */
@@ -210,16 +232,19 @@ for (const deck of decks) {
     const sentences: Array<{ es: string; en: string }> = card.source_sentences ?? []
 
     // Check whether every existing sentence contains the exact term
-    const hasMismatch = sentences.length > 0 &&
+    const hasMismatch = sentences.length === 0 ||
       !sentences.some((s) => termInSentence(s.es, card.spanish_term))
 
-    // Also flag cards with no sentences (nothing to show)
     if (!hasMismatch) continue
 
     totalMismatched++
-    console.log(`  ⚠️   Mismatch — deck: "${deck.name}" | term: "${card.spanish_term}"`)
-    for (const s of sentences) {
-      console.log(`         sentence: "${s.es.slice(0, 80)}…"`)
+    if (sentences.length === 0) {
+      console.log(`  ⚠️   Missing — deck: "${deck.name}" | term: "${card.spanish_term}"`)
+    } else {
+      console.log(`  ⚠️   Mismatch — deck: "${deck.name}" | term: "${card.spanish_term}"`)
+      for (const s of sentences) {
+        console.log(`         sentence: "${s.es.slice(0, 80)}…"`)
+      }
     }
 
     if (DRY_RUN) continue
@@ -230,9 +255,9 @@ for (const deck of decks) {
       sentenceList = chapterText ? splitIntoSentences(chapterText) : []
     }
 
-    // Find sentences in the chapter text that contain the exact term
+    // Find sentences in the chapter text that contain the exact term or verb stem
     const matching = (sentenceList ?? []).filter((s) =>
-      termInSentence(s, card.spanish_term)
+      termOrStemInSentence(s, card.spanish_term)
     )
 
     if (!matching.length) {
@@ -252,8 +277,8 @@ for (const deck of decks) {
 
     // Translate the best matching sentences
     const translated = await translateSentences(card.spanish_term, matching)
-    // Verify the translated pairs still contain the term (sanity check)
-    const clean = translated.filter((p) => termInSentence(p.es, card.spanish_term))
+    // Verify the translated pairs still contain the term or stem (sanity check)
+    const clean = translated.filter((p) => termOrStemInSentence(p.es, card.spanish_term))
 
     if (!clean.length) {
       console.log(`    ⚠️   Translation result failed sanity check — clearing source_sentences`)
@@ -277,8 +302,8 @@ for (const deck of decks) {
 }
 
 console.log(`\n📊  Summary:`)
-console.log(`    Scanned:    ${totalScanned} cards`)
-console.log(`    Mismatched: ${totalMismatched} cards`)
+console.log(`    Scanned:      ${totalScanned} cards`)
+console.log(`    Needs repair: ${totalMismatched} cards`)
 if (!DRY_RUN) {
   console.log(`    Repaired:   ${totalRepaired} cards`)
   console.log(`    Cleared:    ${totalCleared} cards (term absent from chapter text)`)
