@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUserFromRequest, isAllowedEmail } from '@/lib/auth-api'
 import { getModel } from '@/lib/gemini'
+import { getConjugations } from '@/lib/conjugations'
 
 // Matches a Spanish infinitive: letters + common Spanish accent chars, 1–60 chars.
 const INFINITIVE_RE = /^[a-záéíóúüñA-ZÁÉÍÓÚÜÑ]{1,60}$/
@@ -32,6 +33,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid infinitive' }, { status: 400 })
   }
 
+  // ── Local lookup (no API call) ─────────────────────────────────────────
+  const local = getConjugations(infinitive)
+  if (local) {
+    return NextResponse.json({ infinitive, forms: local })
+  }
+
+  // ── Gemini fallback for verbs not in the static table ─────────────────
   const model = getModel()
 
   const prompt = `Return ONLY a JSON array of objects (no markdown, no code fences, no explanation) where each object represents one conjugated surface form of the Spanish verb "${infinitive}".
@@ -41,14 +49,14 @@ Each object must have exactly two string fields:
 - "translation": a short English label in the format "Tense: subject + meaning", e.g. "Future: he/she/it will have", "Imperfect: I/he/she/it had", "Present subjunctive: you have", "Gerund", "Past participle (feminine plural)", "Infinitive"
 
 Include ALL of these:
-- All indicative tenses: present, preterite, imperfect, future, conditional (all persons)
-- All subjunctive tenses: present subjunctive, imperfect subjunctive -ra forms, imperfect subjunctive -se forms (all persons)
-- Imperative (affirmative and negative, all applicable persons)
+- All indicative tenses: present, preterite, imperfect, future, conditional (all persons EXCEPT vosotros)
+- All subjunctive tenses: present subjunctive, imperfect subjunctive -ra forms, imperfect subjunctive -se forms (all persons EXCEPT vosotros)
+- Imperative (affirmative and negative, all applicable persons EXCEPT vosotros)
 - The infinitive itself
 - The gerund (present participle)
 - The past participle (all gender/number forms)
 
-Do not include reflexive pronouns. Do not include compound tenses. No duplicate form+translation pairs.
+Do not include vosotros forms. Do not include reflexive pronouns. Do not include compound tenses. No duplicate form+translation pairs.
 
 Respond with ONLY the JSON array, nothing else.`
 

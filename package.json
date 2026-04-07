@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint .",
     "chapter:mark": "node scripts/patch-chapter-text.mjs",
-    "chapter:seed": "npx tsx --env-file=.env scripts/seed-decks.ts"
+    "chapter:seed": "npx tsx --env-file=.env scripts/seed-decks.ts",
+    "conjugations:generate": "npx tsx --env-file=.env scripts/generate-conjugation-table.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

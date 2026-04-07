@@ -7,6 +7,7 @@ import { getBooks } from '@/data/books'
 import { BookListPanel } from '@/components/library/BookListPanel'
 import { ChapterListPanel } from '@/components/library/ChapterListPanel'
 import { WordAddPopover } from '@/components/WordAddPopover'
+import { ConjugationPanel } from '@/components/ConjugationPanel'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -225,6 +226,35 @@ function annotateText(
   return spans
 }
 
+/**
+ * Splits already-annotated spans further to highlight plain text search matches.
+ */
+function applySearchHighlight(spans: Span[], query: string): Span[] {
+  if (!query) return spans
+  const lowerQuery = query.toLowerCase()
+  const result: Span[] = []
+
+  for (const span of spans) {
+    const lowerText = span.text.toLowerCase()
+    let i = 0
+    while (i < span.text.length) {
+      const idx = lowerText.indexOf(lowerQuery, i)
+      if (idx === -1) {
+        const remaining = span.text.slice(i)
+        if (remaining) result.push({ text: remaining, subcategory: span.subcategory, translation: span.translation })
+        break
+      }
+      if (idx > i) {
+        result.push({ text: span.text.slice(i, idx), subcategory: span.subcategory, translation: span.translation })
+      }
+      result.push({ text: span.text.slice(idx, idx + lowerQuery.length), subcategory: 'text-search' })
+      i = idx + lowerQuery.length
+    }
+  }
+
+  return result
+}
+
 // ── Chapter text renderer ──────────────────────────────────────────────────
 
 function AnnotatedText({
@@ -232,18 +262,20 @@ function AnnotatedText({
   terms,
   activeSubcategories,
   verbForms,
+  searchQuery,
   onWordSelect,
 }: {
   text: string
   terms: TermAnnotation[]
   activeSubcategories: Set<string>
   verbForms: VerbForm[]
+  searchQuery?: string
   onWordSelect?: (selectedText: string, translation: string | null, subcategory: string | null, paragraph: string, anchor: { x: number; y: number }) => void
 }) {
-  const spans = useMemo(
-    () => annotateText(text, terms, activeSubcategories, verbForms),
-    [text, terms, activeSubcategories, verbForms]
-  )
+  const spans = useMemo(() => {
+    const annotated = annotateText(text, terms, activeSubcategories, verbForms)
+    return searchQuery ? applySearchHighlight(annotated, searchQuery) : annotated
+  }, [text, terms, activeSubcategories, verbForms, searchQuery])
 
   const handleClick = useCallback((event: React.MouseEvent<HTMLParagraphElement>) => {
     if (!onWordSelect) return
@@ -263,9 +295,7 @@ function AnnotatedText({
       const wordText = target.textContent?.trim() ?? ''
       if (!wordText) return
       const wordSubcategory = target.dataset.subcategory ?? null
-      const wordTranslation = wordSubcategory === 'verb-search'
-        ? (target.dataset.translation ?? null)
-        : null
+      const wordTranslation = target.dataset.translation ?? null
       onWordSelect(wordText, wordTranslation, wordSubcategory, text, { x: event.clientX, y: event.clientY })
     }
   }, [onWordSelect, text])
@@ -279,6 +309,9 @@ function AnnotatedText({
         if (span.subcategory === null) {
           return <span key={idx}>{span.text}</span>
         }
+        if (span.subcategory === 'text-search') {
+          return <mark key={idx} className="bg-yellow-400/50 text-yellow-100 rounded px-0.5">{span.text}</mark>
+        }
         const wordType = getWordType(span.subcategory)
         if (!wordType) return <span key={idx}>{span.text}</span>
         return (
@@ -286,8 +319,8 @@ function AnnotatedText({
             key={idx}
             className={`${wordType.spanClass} cursor-pointer`}
             data-subcategory={span.subcategory}
-            data-translation={span.subcategory === 'verb-search' ? (span.translation ?? undefined) : undefined}
-            title={span.subcategory === 'verb-search' ? (span.translation ?? wordType.label) : wordType.label}
+            data-translation={span.translation ?? undefined}
+            title={span.translation ?? wordType.label}
           >
             {span.text}
           </mark>
@@ -310,6 +343,11 @@ function FilterBar({
   isConjugating,
   verbInfinitive,
   onVerbSearchClear,
+  textSearch,
+  onTextSearchChange,
+  textSearchMatchCount,
+  readerMode,
+  onReaderModeChange,
 }: {
   presentTypes: string[]          // normalised subcategories that appear in this chapter
   activeSubcategories: Set<string>
@@ -321,6 +359,11 @@ function FilterBar({
   isConjugating: boolean
   verbInfinitive: string | null
   onVerbSearchClear: () => void
+  textSearch: string
+  onTextSearchChange: (value: string) => void
+  textSearchMatchCount: number
+  readerMode: 'read' | 'build'
+  onReaderModeChange: (mode: 'read' | 'build') => void
 }) {
   const allActive = presentTypes.every((s) => activeSubcategories.has(s))
 
@@ -339,6 +382,31 @@ function FilterBar({
       >
         All
       </button>
+
+      {/* Mode toggle */}
+      <div className="flex items-center rounded-full border border-white/15 overflow-hidden shrink-0">
+        <button
+          onClick={() => onReaderModeChange('read')}
+          className={`text-xs font-semibold px-3 py-1 transition-colors ${
+            readerMode === 'read'
+              ? 'bg-white/15 text-white'
+              : 'bg-transparent text-white/40 hover:text-white/70'
+          }`}
+        >
+          📖 Read
+        </button>
+        <button
+          onClick={() => onReaderModeChange('build')}
+          className={`text-xs font-semibold px-3 py-1 border-l border-white/15 transition-colors ${
+            readerMode === 'build'
+              ? 'bg-white/15 text-white'
+              : 'bg-transparent text-white/40 hover:text-white/70'
+          }`}
+        >
+          🗂 Build
+        </button>
+      </div>
+
       {WORD_TYPES.filter((wt) => presentTypes.includes(wt.subcategory)).map((wt) => {
         const active = activeSubcategories.has(wt.subcategory)
         return (
@@ -357,8 +425,33 @@ function FilterBar({
         )
       })}
 
+      {/* Text search */}
+      <div className="flex items-center gap-1 ml-auto shrink-0">
+        <input
+          type="text"
+          value={textSearch}
+          onChange={(e) => onTextSearchChange(e.target.value)}
+          placeholder="Find in chapter…"
+          className="text-xs bg-white/5 border border-white/15 rounded-full px-3 py-1 text-white/70 placeholder:text-white/25 focus:outline-none focus:border-yellow-400/50 focus:text-white transition-colors w-36"
+        />
+        {textSearch && (
+          <span className="text-xs text-white/35 shrink-0">
+            {textSearchMatchCount} {textSearchMatchCount === 1 ? 'match' : 'matches'}
+          </span>
+        )}
+        {textSearch && (
+          <button
+            onClick={() => onTextSearchChange('')}
+            aria-label="Clear text search"
+            className="text-white/40 hover:text-white transition-colors leading-none"
+          >
+            ×
+          </button>
+        )}
+      </div>
+
       {/* Verb search input */}
-      <div className="flex items-center gap-1.5 ml-auto shrink-0">
+      <div className="flex items-center gap-1.5 shrink-0">
         {verbInfinitive ? (
           <span className="flex items-center gap-1 text-xs font-semibold rounded-full px-3 py-1 border bg-teal-400/20 text-teal-200 border-teal-400/50">
             {verbInfinitive}
@@ -416,11 +509,20 @@ function ReaderContent() {
     new Set(WORD_TYPES.map((w) => w.subcategory))
   )
 
+  // Text search state
+  const [textSearch, setTextSearch] = useState('')
+
   // Verb search state — persists across chapter/book changes and navigation away
   const [verbSearchInput, setVerbSearchInput] = useState('')
   const [verbForms, setVerbForms] = useState<VerbForm[]>([])
   const [verbInfinitive, setVerbInfinitive] = useState<string | null>(null)
   const [isConjugating, setIsConjugating] = useState(false)
+
+  // Reader mode: 'read' = conjugation panel on verb click, 'build' = word-add popover
+  const [readerMode, setReaderMode] = useState<'read' | 'build'>('read')
+
+  // Conjugation panel state
+  const [conjPanelWord, setConjPanelWord] = useState<{ surfaceForm: string; subcategory: string } | null>(null)
 
   // Word-add popover state
   type WordPopover = {
@@ -439,8 +541,16 @@ function ReaderContent() {
     paragraph: string,
     anchor: { x: number; y: number }
   ) => {
-    setWordPopover({ text, translation, subcategory, paragraph, anchor })
-  }, [])
+    if (readerMode === 'read') {
+      // In read mode, verb clicks open the conjugation panel; other clicks do nothing
+      if (subcategory?.startsWith('verbs') || subcategory === 'verb-search') {
+        setConjPanelWord({ surfaceForm: text, subcategory })
+      }
+    } else {
+      // In build mode, all clicks open the word-add popover (existing behaviour)
+      setWordPopover({ text, translation, subcategory, paragraph, anchor })
+    }
+  }, [readerMode])
 
   // Restore verb search from localStorage on mount (survives navigating away and back)
   useEffect(() => {
@@ -504,6 +614,20 @@ function ReaderContent() {
       })
       .catch(() => setLoading(false))
   }, [session, selectedBook, selectedChapter])
+
+  // Count text search matches in the chapter
+  const textSearchMatchCount = useMemo(() => {
+    if (!textSearch || !chapterText) return 0
+    const q = textSearch.toLowerCase()
+    let count = 0
+    let idx = 0
+    const lower = chapterText.toLowerCase()
+    while ((idx = lower.indexOf(q, idx)) !== -1) {
+      count++
+      idx += q.length
+    }
+    return count
+  }, [textSearch, chapterText])
 
   // Which subcategory types actually appear in this chapter's vocab
   const presentTypes = useMemo(() => {
@@ -663,6 +787,11 @@ function ReaderContent() {
           isConjugating={isConjugating}
           verbInfinitive={verbInfinitive}
           onVerbSearchClear={handleVerbSearchClear}
+          textSearch={textSearch}
+          onTextSearchChange={setTextSearch}
+          textSearchMatchCount={textSearchMatchCount}
+          readerMode={readerMode}
+          onReaderModeChange={setReaderMode}
         />
       )}
 
@@ -688,6 +817,7 @@ function ReaderContent() {
                 terms={terms}
                 activeSubcategories={activeSubcategories}
                 verbForms={verbForms}
+                searchQuery={textSearch || undefined}
                 onWordSelect={handleWordSelect}
               />
             ))}
@@ -746,6 +876,11 @@ function ReaderContent() {
                   isConjugating={isConjugating}
                   verbInfinitive={verbInfinitive}
                   onVerbSearchClear={handleVerbSearchClear}
+                  textSearch={textSearch}
+                  onTextSearchChange={setTextSearch}
+                  textSearchMatchCount={textSearchMatchCount}
+                  readerMode={readerMode}
+                  onReaderModeChange={setReaderMode}
                 />
               )}
               <div className="flex-1 overflow-y-auto px-6 py-6 md:px-10 md:py-8">
@@ -772,6 +907,7 @@ function ReaderContent() {
                         terms={terms}
                         activeSubcategories={activeSubcategories}
                         verbForms={verbForms}
+                        searchQuery={textSearch || undefined}
                         onWordSelect={handleWordSelect}
                       />
                     ))}
@@ -783,7 +919,7 @@ function ReaderContent() {
         </div>
       </div>
 
-      {/* ── Word-add popover ──────────────────────────────── */}
+      {/* ── Word-add popover (Build mode) ──────────────────── */}
       {wordPopover && (
         <WordAddPopover
           selectedText={wordPopover.text}
@@ -794,6 +930,15 @@ function ReaderContent() {
           chapterNumber={selectedChapter}
           anchor={wordPopover.anchor}
           onClose={() => setWordPopover(null)}
+        />
+      )}
+
+      {/* ── Conjugation panel (Read mode) ────────────────────── */}
+      {conjPanelWord && (
+        <ConjugationPanel
+          surfaceForm={conjPanelWord.surfaceForm}
+          subcategory={conjPanelWord.subcategory}
+          onClose={() => setConjPanelWord(null)}
         />
       )}
     </>

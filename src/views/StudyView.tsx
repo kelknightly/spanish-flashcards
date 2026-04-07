@@ -8,6 +8,7 @@ import { useSound } from '@/hooks/useSound'
 import { CEFR_NOUN_NEXT, CEFR_NOUN_NEXT_LABEL } from '@/data/books'
 import { useCardDirection } from '@/contexts/CardDirectionContext'
 import { ConfettiCannon } from '@/components/ConfettiCannon'
+import { ConjugationPanel } from '@/components/ConjugationPanel'
 
 interface SourceSentence {
   es: string
@@ -130,6 +131,9 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
 
   // Personal best toast
   const [toastMsg, setToastMsg] = useState<string | null>(null)
+
+  // Conjugation panel
+  const [conjPanelWord, setConjPanelWord] = useState<{ surfaceForm: string; subcategory: string } | null>(null)
 
   // Learning steps: tracks how many in-session attempts a card has had (by card id)
   const learningProgress = useRef<Map<string, number>>(new Map())
@@ -649,6 +653,16 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
                     )}
                   </div>
                 )}
+
+                {/* Conjugate button — only for verb decks */}
+                {deck?.subcategory?.startsWith('verbs') && currentCard && (
+                  <button
+                    onClick={() => setConjPanelWord({ surfaceForm: currentCard.spanish_term, subcategory: deck.subcategory! })}
+                    className="text-xs text-white/30 hover:text-neon-purple transition-colors border border-white/10 hover:border-neon-purple/40 rounded-full px-3 py-1"
+                  >
+                    Conjugate
+                  </button>
+                )}
               </div>
 
               {/* Input area */}
@@ -747,6 +761,15 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
           </div>
         </div>
       </div>
+
+      {/* Conjugation panel */}
+      {conjPanelWord && (
+        <ConjugationPanel
+          surfaceForm={conjPanelWord.surfaceForm}
+          subcategory={conjPanelWord.subcategory}
+          onClose={() => setConjPanelWord(null)}
+        />
+      )}
     </div>
   )
 }
