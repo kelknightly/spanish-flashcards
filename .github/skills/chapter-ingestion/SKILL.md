@@ -115,3 +115,7 @@ The seed script is idempotent — safe to re-run. Confirm output shows 12 decks 
 ## Notes on image resolution
 
 Low-resolution screenshots make the second column's small text ambiguous. If any word or sentence cannot be read with confidence, flag it in the response with `[unclear: …]` rather than guessing. Higher-resolution screenshots eliminate this problem entirely.
+
+## This is Mexican Spanish
+
+The source text uses **Mexican Spanish** (Latin American). Vosotros does not exist in this dialect — if you encounter verb forms ending in `-áis`, `-éis`, `-áis`, `-ois`, or the pronoun `vosotros`/`os` (as a second-person plural), you are misreading the screenshot. Stop and re-read that word carefully. Correct conjugation tables use only: `yo`, `tú`, `él/ella/usted`, `nosotros`, `ellos/ellas/ustedes`.
