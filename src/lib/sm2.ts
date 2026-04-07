@@ -52,10 +52,16 @@ export function updateSM2(current: SM2State, quality: number): SM2Result {
     easeFactor + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02)
   )
 
+  // Guard: interval must be at least 1 day so next_review_at is always in the future.
+  // Without this, a stale interval_days=0 in the DB would produce round(0 * ef)=0
+  // and schedule the card for today, causing it to re-enter the queue immediately.
+  intervalDays = Math.max(1, intervalDays)
+
+  // Use UTC arithmetic throughout so the result is timezone-independent.
+  // setUTCHours first (normalize to today midnight), then advance by intervalDays.
   const nextReviewAt = new Date()
-  nextReviewAt.setDate(nextReviewAt.getDate() + intervalDays)
-  // Normalize to midnight UTC so date comparisons are stable
   nextReviewAt.setUTCHours(0, 0, 0, 0)
+  nextReviewAt.setUTCDate(nextReviewAt.getUTCDate() + intervalDays)
 
   return { easeFactor, intervalDays, repetitions, nextReviewAt, isCorrect }
 }

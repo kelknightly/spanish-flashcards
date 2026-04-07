@@ -44,23 +44,54 @@ interface EvalResult {
 
 interface Props {
   deckId: string
+  bookNumber?: number
+  chapterNumber?: number
 }
 
-function highlightTerm(sentence: string, term: string) {
-  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const parts = sentence.split(new RegExp(`(${escaped})`, 'gi'))
-  return parts.map((part, i) =>
-    i % 2 === 1 ? (
-      <span key={i} className="underline decoration-neon-pink decoration-2">
-        {part}
-      </span>
-    ) : (
-      part
+function highlightTerm(sentence: string, term: string): (string | React.ReactElement)[] {
+  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const renderParts = (parts: string[]) =>
+    parts.map((part, i) =>
+      i % 2 === 1 ? (
+        <span key={i} className="underline decoration-neon-pink decoration-2">
+          {part}
+        </span>
+      ) : (
+        part
+      )
     )
-  )
+
+  // Exact phrase match (handles nouns, unchanged forms)
+  const exactParts = sentence.split(new RegExp(`(${escape(term)})`, 'gi'))
+  if (exactParts.length > 1) return renderParts(exactParts)
+
+  // Strip leading article so "el fuego" → "fuego", which matches the contracted
+  // forms "al fuego" (a+el) and "del fuego" (de+el), and English article variants.
+  const ARTICLE_RE = /^(?:el|la|los|las|un|una|unos|unas|the|a|an)\s+/i
+  const coreTerm = term.replace(ARTICLE_RE, '').trim()
+
+  // Core exact match — catches contracted/variant articles
+  if (coreTerm && coreTerm !== term) {
+    const coreParts = sentence.split(new RegExp(`(${escape(coreTerm)})`, 'gi'))
+    if (coreParts.length > 1) return renderParts(coreParts)
+  }
+
+  // Stem prefix fallback — handles conjugated/inflected Spanish forms.
+  // Operates on the core term (skips article) so "el hablar" stems "habl...",
+  // not "el". (hablar→habl, correr→corr, vivir→viv)
+  const matchTerm = coreTerm || term
+  const firstWord = matchTerm.split(/\s+/)[0]
+  const stemLen = Math.max(3, firstWord.length - 2)
+  if (firstWord.length >= 4) {
+    const stem = escape(firstWord.slice(0, stemLen))
+    const stemParts = sentence.split(new RegExp(`(${stem}\\S*)`, 'gi'))
+    if (stemParts.length > 1) return renderParts(stemParts)
+  }
+
+  return [sentence]
 }
 
-export function StudyView({ deckId }: Props) {
+export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
   const { session } = useAuth()
   const router = useRouter()
 
@@ -109,7 +140,11 @@ export function StudyView({ deckId }: Props) {
   // Load deck
   useEffect(() => {
     if (!session) return
-    fetch(`/api/decks/${deckId}`, {
+    const isMixed = deckId === 'mixed'
+    const fetchUrl = isMixed
+      ? `/api/decks/mixed?book=${bookNumber}&chapter=${chapterNumber}`
+      : `/api/decks/${deckId}`
+    fetch(fetchUrl, {
       headers: { Authorization: `Bearer ${session.access_token}` },
     })
       .then((r) => r.json())
@@ -130,14 +165,17 @@ export function StudyView({ deckId }: Props) {
         setErrorMsg('Failed to load deck.')
         setViewState('error')
       })
-  }, [deckId, session])
+  }, [deckId, session, bookNumber, chapterNumber])
 
   // When the session completes, look up the next CEFR level deck (if applicable)
   useEffect(() => {
     if (viewState !== 'complete' || !session || !deck) return
     const nextSub = deck.subcategory ? CEFR_NOUN_NEXT[deck.subcategory] : null
-    if (!nextSub || !deck.book_number || !deck.chapter_number) return
-    fetch(`/api/decks?book=${deck.book_number}&chapter=${deck.chapter_number}`, {
+    if (!nextSub) return
+    const fetchUrl = deck.book_number && deck.chapter_number
+      ? `/api/decks?book=${deck.book_number}&chapter=${deck.chapter_number}`
+      : `/api/decks`
+    fetch(fetchUrl, {
       headers: { Authorization: `Bearer ${session.access_token}` },
     })
       .then((r) => r.json())
@@ -178,8 +216,12 @@ export function StudyView({ deckId }: Props) {
       if (result.isCorrect) {
         setCorrect((c) => c + 1)
         setFlipped(true)
-        play('correct')
-        if (cardRef.current) triggerBurst(cardRef.current.getBoundingClientRect())
+        // Defer the sound + burst by one frame so the flip animation gets first paint
+        const rect = cardRef.current?.getBoundingClientRect()
+        requestAnimationFrame(() => {
+          play('correct')
+          if (rect) triggerBurst(rect)
+        })
 
         // Track newly introduced cards toward the daily cap
         if (result.wasNewCard) {

@@ -44,13 +44,13 @@ export function useSound() {
 
   const play = useCallback(
     (type: SoundType) => {
-      if (!enabled) return
+      if (localStorage.getItem(STORAGE_KEY) !== 'true') return
       const audio = audioRef.current[type]
       if (!audio) return
       audio.currentTime = 0
       audio.play().catch(() => { /* autoplay policy — silently ignore */ })
     },
-    [enabled]
+    []
   )
 
   return { enabled, toggle, play }

@@ -127,7 +127,7 @@ Respond ONLY with valid JSON, no extra text:
   const nextReviewDate = sm2.nextReviewAt.toISOString().slice(0, 10)
 
   if (progressRow) {
-    await sb
+    const { error: updateError } = await sb
       .from('card_progress')
       .update({
         ease_factor: sm2.easeFactor,
@@ -142,8 +142,12 @@ Respond ONLY with valid JSON, no extra text:
       })
       .eq('vocab_term_id', vocabTermId)
       .eq('user_id', user.id)
+    if (updateError) {
+      console.error('[api/evaluate] Failed to update card_progress:', updateError.message)
+      return NextResponse.json({ error: 'Failed to save progress' }, { status: 500 })
+    }
   } else {
-    await sb.from('card_progress').insert({
+    const { error: insertError } = await sb.from('card_progress').insert({
       vocab_term_id: vocabTermId,
       user_id: user.id,
       ease_factor: sm2.easeFactor,
@@ -157,6 +161,10 @@ Respond ONLY with valid JSON, no extra text:
       total_correct: sm2.isCorrect ? 1 : 0,
       ...(isNewlyMastered ? { mastered_at: now } : {}),
     })
+    if (insertError) {
+      console.error('[api/evaluate] Failed to insert card_progress:', insertError.message)
+      return NextResponse.json({ error: 'Failed to save progress' }, { status: 500 })
+    }
   }
 
   return NextResponse.json({

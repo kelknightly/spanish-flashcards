@@ -51,6 +51,7 @@ export const DECK_TYPES = [
 
 /** CEFR noun level progression: subcategory → next subcategory */
 export const CEFR_NOUN_NEXT: Record<string, string> = {
+  'nouns':    'nouns-a1',
   'nouns-a1': 'nouns-a2',
   'nouns-a2': 'nouns-b1',
   'nouns-b1': 'nouns-b2',
@@ -58,6 +59,7 @@ export const CEFR_NOUN_NEXT: Record<string, string> = {
 
 /** Label to show in "Continue to …" prompts for the next CEFR level */
 export const CEFR_NOUN_NEXT_LABEL: Record<string, string> = {
+  'nouns':    'A1 Nouns',
   'nouns-a1': 'A2 Nouns',
   'nouns-a2': 'B1 Nouns',
   'nouns-b1': 'B2 Nouns',

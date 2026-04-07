@@ -125,17 +125,17 @@ export function SparkleCanvas() {
 
     // Register burst handler – fires an initial explosion + starts a sustained rain zone
     registerBurst((rect: DOMRect) => {
-      // Initial big explosion: 20 particles per border point
+      // Initial burst: 7 particles per border point (kept lean so the flip isn't blocked)
       for (const pos of borderPositions(rect)) {
-        for (let i = 0; i < 20; i++) {
+        for (let i = 0; i < 7; i++) {
           spawnBurstParticle(
             pos.x + (Math.random() - 0.5) * 40,
             pos.y + (Math.random() - 0.5) * 40,
           )
         }
       }
-      // Start a rain zone that keeps emitting for ~2.5 seconds (150 frames @ 60 fps)
-      rainZones.push({ rect, age: 0, duration: 150 })
+      // Rain zone: ~1.5 seconds (90 frames @ 60 fps)
+      rainZones.push({ rect, age: 0, duration: 90 })
     })
 
     const draw = () => {
@@ -156,8 +156,8 @@ export function SparkleCanvas() {
           rainZones.splice(z, 1)
           continue
         }
-        // Emit 4–6 particles per frame from random border points
-        const emit = Math.floor(Math.random() * 3) + 4
+        // Emit 2–4 particles per frame from random border points
+        const emit = Math.floor(Math.random() * 3) + 2
         for (let e = 0; e < emit; e++) {
           const pos = randomBorderPos(zone.rect)
           spawnBurstParticle(

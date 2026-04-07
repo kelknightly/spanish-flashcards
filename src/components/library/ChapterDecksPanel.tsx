@@ -110,8 +110,7 @@ export function ChapterDecksPanel({ bookNumber, chapterNumber }: Props) {
 
       {/* Deck grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {DECK_TYPES.map((deckType) => {
-          const deck = latestBySubcategory.get(deckType.subcategory)
+        {DECK_TYPES.map((deckType) => {          const deck = latestBySubcategory.get(deckType.subcategory)
           const allMastered =
             deck && deck.card_count > 0 && deck.mastered_count >= deck.card_count
 
@@ -214,6 +213,22 @@ export function ChapterDecksPanel({ bookNumber, chapterNumber }: Props) {
           )
         })}
       </div>
+
+      {/* Mixed Deck — only shown when at least one deck exists */}
+      {latestBySubcategory.size > 0 && (
+        <div className="mt-6 pt-6 border-t border-white/10">
+          <button
+            onClick={() =>
+              router.push(`/decks/mixed?book=${bookNumber}&chapter=${chapterNumber}`)
+            }
+            className="w-full rounded-xl glass border border-neon-blue/40 py-3 px-4 text-sm font-semibold text-neon-blue hover:bg-neon-blue/10 transition-colors flex items-center justify-center gap-2"
+          >
+            <span>🎲</span>
+            <span>Mixed Deck</span>
+            <span className="text-xs font-normal text-white/40 ml-1">20 random cards · all types</span>
+          </button>
+        </div>
+      )}
     </div>
   )
 }

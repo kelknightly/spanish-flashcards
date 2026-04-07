@@ -31,18 +31,35 @@ interface EvalResult {
   newlyMastered: boolean
 }
 
-function highlightTerm(sentence: string, term: string) {
-  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const parts = sentence.split(new RegExp(`(${escaped})`, 'gi'))
-  return parts.map((part, i) =>
-    i % 2 === 1 ? (
-      <span key={i} className="underline decoration-neon-pink decoration-2">
-        {part}
-      </span>
-    ) : (
-      part
+function highlightTerm(sentence: string, term: string): (string | React.ReactElement)[] {
+  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const renderParts = (parts: string[]) =>
+    parts.map((part, i) =>
+      i % 2 === 1 ? (
+        <span key={i} className="underline decoration-neon-pink decoration-2">
+          {part}
+        </span>
+      ) : (
+        part
+      )
     )
-  )
+
+  // Exact phrase match (handles nouns, unchanged forms)
+  const exactParts = sentence.split(new RegExp(`(${escape(term)})`, 'gi'))
+  if (exactParts.length > 1) return renderParts(exactParts)
+
+  // Stem prefix fallback — handles conjugated/inflected Spanish forms.
+  // Strip the last 2 chars of the first word to approximate the verb stem
+  // (hablar→habl, correr→corr, vivir→viv) then match any word starting with it.
+  const firstWord = term.split(/\s+/)[0]
+  const stemLen = Math.max(3, firstWord.length - 2)
+  if (firstWord.length >= 4) {
+    const stem = escape(firstWord.slice(0, stemLen))
+    const stemParts = sentence.split(new RegExp(`(${stem}\\S*)`, 'gi'))
+    if (stemParts.length > 1) return renderParts(stemParts)
+  }
+
+  return [sentence]
 }
 
 export function ReviewView() {
