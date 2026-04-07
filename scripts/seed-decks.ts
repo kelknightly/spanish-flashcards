@@ -97,6 +97,8 @@ const TYPE_INSTRUCTIONS: Record<string, string> = {
     'Extract exactly 10 nouns at CEFR B2 level that appear in the text. B2 nouns are upper-intermediate: abstract ideas, nuanced feelings, literary or topic-specific terms. Include the article (el/la) with each noun. All nouns must appear in the text.',
   'verbs-present':
     'Extract exactly 10 verbs conjugated in the present tense (presente de indicativo) as they appear in the text.',
+  'verbs-perfect':
+    'Extract exactly 10 verbs conjugated in the pretérito perfecto compuesto (present perfect) as they appear in the text. Each entry must be the full two-word form: the conjugated auxiliary haber (he/has/ha/hemos/habéis/han) followed immediately by the past participle (e.g. "he caminado", "ha llegado", "hemos visto"). The "spanish" field must contain the complete two-word combination exactly as it appears in the text.',
   'verbs-preterite':
     'Extract exactly 10 verbs conjugated in the preterite past tense (pretérito indefinido) as they appear in the text.',
   'verbs-imperfect':
@@ -129,9 +131,9 @@ function buildPrompt(subcategory: string, chapterText: string, excludeTerms: Set
 ${instruction}${exclusionClause}
 
 For each item provide:
-- "spanish": the Spanish term exactly as it appears in (or is derived from) the text
+- "spanish": the Spanish term exactly as it appears in the text (exact spelling and accents)
 - "english": the English translation
-- "sourceSentences": an array of 1–2 example sentences from the text (each with "es" and "en" keys)
+- "sourceSentences": an array of 1–2 example sentences copied verbatim from the text (each with "es" and "en" keys). CRITICAL: each "es" sentence MUST contain the exact "spanish" term verbatim — same spelling, same accents. Do NOT use a sentence that contains a different conjugation or form of the word; if no sentence contains the exact term, omit sourceSentences entirely.
 
 Return ONLY valid JSON — an array of exactly 10 objects. No markdown, no explanation.
 

@@ -38,6 +38,7 @@ const model = genAI.getGenerativeModel({
 // What each subcategory expects, in Gemini-friendly description
 const SUBCATEGORY_RULES: Record<string, string> = {
   'verbs-present':     'Spanish present indicative (presente de indicativo). E.g. habla, comen, soy, voy, tiene.',
+  'verbs-perfect':     'Spanish present perfect (pretérito perfecto compuesto). Full two-word form: conjugated haber + past participle. E.g. he hablado, ha comido, hemos visto, han ido.',
   'verbs-preterite':   'Spanish preterite (pretérito indefinido / pretérito perfecto simple). E.g. habló, comieron, fue, tuvo.',
   'verbs-imperfect':   'Spanish imperfect (pretérito imperfecto). E.g. hablaba, comían, era, tenía, vivía.',
   'verbs-future':      'Spanish future indicative (futuro simple). E.g. hablará, comeremos, será, tendrán.',

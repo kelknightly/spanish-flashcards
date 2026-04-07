@@ -88,6 +88,13 @@ export const WORD_TYPES: Array<{
     dotClass: 'bg-blue-400',
   },
   {
+    subcategory: 'verbs-perfect',
+    label: 'Present Perfect',
+    spanClass: 'bg-emerald-500/25 text-emerald-200 rounded px-0.5',
+    activeClass: 'bg-emerald-500/30 text-emerald-200 border-emerald-400/60',
+    dotClass: 'bg-emerald-400',
+  },
+  {
     subcategory: 'pronoun-composites',
     label: 'Pronouns',
     spanClass: 'bg-yellow-500/25 text-yellow-200 rounded px-0.5',

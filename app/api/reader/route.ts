@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
     'verbs-imperative',
     'verbs-conditional',
     'verbs-future',
+    'verbs-perfect',
     'verbs-imperfect',
     'verbs-preterite',
     'verbs-present',

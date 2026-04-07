@@ -79,16 +79,21 @@ function highlightTerm(sentence: string, term: string): (string | React.ReactEle
     if (parts.length > 1) return renderParts(parts)
   }
 
-  // Stem prefix fallback — handles conjugated/inflected Spanish forms.
-  // Operates on the core of the first variant so "el hablar" stems "habl...",
-  // not "el". (hablar→habl, correr→corr, vivir→viv)
-  const coreFirst = (coreVariants[0] || term)
-  const firstWord = coreFirst.split(/\s+/)[0]
-  const stemLen = Math.max(3, firstWord.length - 2)
-  if (firstWord.length >= 4) {
-    const stem = escape(firstWord.slice(0, stemLen))
-    const stemParts = sentence.split(new RegExp(`(${stem}\\S*)`, 'gi'))
-    if (stemParts.length > 1) return renderParts(stemParts)
+  // Individual content-word fallback — handles phrases where article/pronoun
+  // changes break phrase matching ("we call" → "they call"). Try each word
+  // ≥ 4 chars from the core candidates, longest first.
+  // NOTE: intentionally NOT using a stem/prefix fallback here. Stripping
+  // conjugation endings (e.g. "respondía" → "respond") would highlight a
+  // *different* conjugated form in the sentence (e.g. "respondió"), creating
+  // a misleading mismatch between the flash word and the highlighted word.
+  const SKIP_WORDS = new Set(['that', 'this', 'with', 'have', 'been', 'were', 'they', 'them', 'their', 'when', 'what', 'which', 'from', 'some', 'also'])
+  const contentWords = coreVariants
+    .flatMap((v) => v.split(/\s+/))
+    .filter((w) => w.length >= 4 && !SKIP_WORDS.has(w.toLowerCase()))
+    .sort((a, b) => b.length - a.length)
+  for (const word of contentWords) {
+    const parts = sentence.split(new RegExp(`(${escape(word)})`, 'gi'))
+    if (parts.length > 1) return renderParts(parts)
   }
 
   return [sentence]

@@ -30,6 +30,8 @@ When extracting flashcards, respond with a JSON block wrapped in triple backtick
   ]
 }
 
+IMPORTANT — source sentences: Each "es" sentence MUST contain the exact "spanish" term verbatim — same spelling, same accents. Never use a sentence that only contains a related form (different conjugation, different tense, etc.). If no sentence in the visible text contains the exact term, omit sourceSentences for that card entirely.
+
 IMPORTANT — composite clitic forms: When a verb appears in the text with one or more clitic pronouns attached (e.g. "pásamelo", "dámelo", "cuéntame", "llévatelo", "díjomelo"), ALWAYS card the full composite form exactly as written. Do NOT split the pronouns off or card just the bare verb form. The "spanish" field must be ONLY the composite verb form itself (e.g. "dímelo"), never a full sentence. The "english" field should translate both the verb and the pronouns (e.g. "pásamelo" → "pass it to me").
 
 Keep explanations friendly, concise, and encouraging. Use examples from the Narnia text when visible.`

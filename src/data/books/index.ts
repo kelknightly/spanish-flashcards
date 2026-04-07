@@ -38,6 +38,7 @@ export const DECK_TYPES = [
   { subcategory: 'nouns-b1',            label: 'B1 Nouns',                    category: 'nouns'      },
   { subcategory: 'nouns-b2',            label: 'B2 Nouns',                    category: 'nouns'      },
   { subcategory: 'verbs-present',       label: 'Present Tense Verbs',         category: 'verbs'      },
+  { subcategory: 'verbs-perfect',       label: 'Present Perfect Verbs',        category: 'verbs'      },
   { subcategory: 'verbs-preterite',     label: 'Past Tense Verbs (Preterite)', category: 'verbs'     },
   { subcategory: 'verbs-imperfect',     label: 'Past Tense Verbs (Imperfect)', category: 'verbs'     },
   { subcategory: 'verbs-future',        label: 'Future Tense Verbs',           category: 'verbs'     },
