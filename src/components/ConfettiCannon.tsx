@@ -1,36 +1,124 @@
 'use client'
 
 import { useEffect } from 'react'
-import confetti from 'canvas-confetti'
-import { useTheme } from '@/contexts/ThemeContext'
+import { Fireworks } from 'fireworks-js'
+
+const STORAGE_KEY = 'sf_sound_enabled'
+const APPLAUSE_FADE_WINDOW_S = 1.5 // seconds before end to start applause fade
 
 export function ConfettiCannon() {
-  const { theme } = useTheme()
-
   useEffect(() => {
-    const colors =
-      theme === 'winter'
-        ? ['#FFFFFF', '#A8DAFF', '#5BB8FF', '#D0EEFF', '#E8F4FF']
-        : theme === 'summer'
-        ? ['#FFB800', '#FF6B35', '#FFE066', '#7FD56F', '#FF9ED2', '#FFF5CC']
-        : ['#FF2D9B', '#9B2DFF', '#2DAAFF', '#2DFF9B', '#FFD700', '#FF6BD6', '#A78BFA']
+    // ── Full-screen overlay container ─────────────────────────────────────────
+    const container = document.createElement('div')
+    container.style.cssText =
+      'position:fixed;top:0;left:0;width:100%;height:100%;' +
+      'z-index:9999;pointer-events:none;transition:opacity 0.8s ease-out;'
+    document.body.appendChild(container)
 
-    // Centre burst from top
-    confetti({
-      particleCount: 160,
-      spread: 85,
-      startVelocity: 62,
-      origin: { x: 0.5, y: 0 },
-      colors,
-      gravity: 0.9,
+    // ── Fireworks visual ──────────────────────────────────────────────────────
+    const fw = new Fireworks(container, {
+      hue:          { min: 0,    max: 360  },
+      rocketsPoint: { min: 10,   max: 90   },
+      intensity:    22,
+      explosion:    8,
+      particles:    90,
+      traceLength:  7,
+      traceSpeed:   5,
+      flickering:   70,
+      brightness:   { min: 55,   max: 90   },
+      decay:        { min: 0.010, max: 0.022 },
+      gravity:      1.0,
+      friction:     0.95,
+      lineWidth:    { explosion: { min: 2, max: 4 }, trace: { min: 1, max: 2 } },
+      lineStyle:    'round',
+      sound:        { enabled: false, files: [], volume: { min: 0, max: 0 } },
     })
+    fw.start()
 
-    // Side cannons after a short delay
-    setTimeout(() => {
-      confetti({ particleCount: 70, spread: 60, startVelocity: 50, angle: 60, origin: { x: 0, y: 0.35 }, colors })
-      confetti({ particleCount: 70, spread: 60, startVelocity: 50, angle: 120, origin: { x: 1, y: 0.35 }, colors })
-    }, 350)
-  }, [theme])
+    // ── Timer helpers ─────────────────────────────────────────────────────────
+    let fadeTimer: ReturnType<typeof setTimeout> | null = null
+    let stopTimer: ReturnType<typeof setTimeout> | null = null
+
+    function scheduleStop(durationS: number) {
+      if (fadeTimer) clearTimeout(fadeTimer)
+      if (stopTimer) clearTimeout(stopTimer)
+
+      const fadeStartMs = Math.max(0, durationS * 1000 - 800)
+      fadeTimer = setTimeout(() => {
+        container.style.opacity = '0'
+      }, fadeStartMs)
+
+      stopTimer = setTimeout(() => {
+        fw.stop(true)
+        if (container.isConnected) container.remove()
+      }, durationS * 1000 + 200)
+    }
+
+    // ── Audio ─────────────────────────────────────────────────────────────────
+    let audioCtx: AudioContext | null = null
+    const soundEnabled = localStorage.getItem(STORAGE_KEY) === 'true'
+
+    if (soundEnabled) {
+      audioCtx = new AudioContext()
+      const ctx = audioCtx
+
+      Promise.all([
+        fetch('/sounds/fireworks-bangs.wav').then(r => r.arrayBuffer()).then(b => ctx.decodeAudioData(b)),
+        fetch('/sounds/fireworks-whistles.wav').then(r => r.arrayBuffer()).then(b => ctx.decodeAudioData(b)),
+        fetch('/sounds/applause.wav').then(r => r.arrayBuffer()).then(b => ctx.decodeAudioData(b)),
+      ]).then(([bangs, whistles, applause]) => {
+        const fireworksDuration = Math.max(bangs.duration, whistles.duration)
+        const now = ctx.currentTime
+
+        // Bangs
+        const bangsGain = ctx.createGain()
+        bangsGain.gain.value = 0.7
+        bangsGain.connect(ctx.destination)
+        const bangsSrc = ctx.createBufferSource()
+        bangsSrc.buffer = bangs
+        bangsSrc.connect(bangsGain)
+        bangsSrc.start(now)
+
+        // Whistles
+        const whistlesGain = ctx.createGain()
+        whistlesGain.gain.value = 0.5
+        whistlesGain.connect(ctx.destination)
+        const whistlesSrc = ctx.createBufferSource()
+        whistlesSrc.buffer = whistles
+        whistlesSrc.connect(whistlesGain)
+        whistlesSrc.start(now)
+
+        // Applause — hold full volume then fade to silence at fireworksDuration
+        const applauseGain = ctx.createGain()
+        const fadeStart = Math.max(0, fireworksDuration - APPLAUSE_FADE_WINDOW_S)
+        applauseGain.gain.setValueAtTime(0.6, now)
+        applauseGain.gain.setValueAtTime(0.6, now + fadeStart)
+        applauseGain.gain.linearRampToValueAtTime(0, now + fireworksDuration)
+        applauseGain.connect(ctx.destination)
+        const applauseSrc = ctx.createBufferSource()
+        applauseSrc.buffer = applause
+        applauseSrc.connect(applauseGain)
+        applauseSrc.start(now)
+
+        scheduleStop(fireworksDuration)
+      }).catch(() => {
+        // Audio unavailable — fall back to a reasonable visual-only duration
+        scheduleStop(8)
+      })
+    } else {
+      // Sound off — run fireworks for a fixed duration
+      scheduleStop(8)
+    }
+
+    // ── Cleanup on unmount ────────────────────────────────────────────────────
+    return () => {
+      if (fadeTimer) clearTimeout(fadeTimer)
+      if (stopTimer) clearTimeout(stopTimer)
+      if (fw.isRunning) fw.stop(true)
+      if (container.isConnected) container.remove()
+      audioCtx?.close()
+    }
+  }, [])
 
   return null
 }

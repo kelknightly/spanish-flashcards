@@ -3,14 +3,8 @@
 import { useEffect, useRef } from 'react'
 import { useSparkle } from '@/contexts/SparkleContext'
 import { useTheme } from '@/contexts/ThemeContext'
-
-const COLORS_GLITTER = [
-  '#FF2D9B', '#9B2DFF', '#2DAAFF', '#2DFF9B',
-  '#FFD700', '#FFFFFF', '#FF6BD6', '#A78BFA',
-  '#FF9500', '#FF3BFF', '#00FFF0', '#FFFA65',
-]
-const COLORS_WINTER = ['#FFFFFF', '#A8DAFF', '#5BB8FF', '#D0EEFF', '#E8F4FF', '#C8E8FF', '#B0CFFF']
-const COLORS_SUMMER = ['#FFB800', '#FF6B35', '#FFE066', '#7FD56F', '#FF9ED2', '#FFF5CC', '#FF8C42', '#FFD700']
+import { useCursorTrailSettings, type TrailSettings } from '@/contexts/CursorTrailSettingsContext'
+import type { Theme } from '@/contexts/ThemeContext'
 
 interface Particle {
   x: number
@@ -36,10 +30,13 @@ export function SparkleCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const { registerBurst, paused } = useSparkle()
   const { theme } = useTheme()
+  const { settings } = useCursorTrailSettings()
   const pausedRef = useRef(paused)
   const themeRef = useRef(theme)
+  const settingsRef = useRef(settings)
   useEffect(() => { pausedRef.current = paused }, [paused])
   useEffect(() => { themeRef.current = theme }, [theme])
+  useEffect(() => { settingsRef.current = settings }, [settings])
 
   useEffect(() => {
     // Only run on pointer-precise (non-touch) devices
@@ -63,11 +60,12 @@ export function SparkleCanvas() {
     window.addEventListener('resize', resize)
 
     const randomColor = () => {
-      const palette =
-        themeRef.current === 'winter' ? COLORS_WINTER :
-        themeRef.current === 'summer' ? COLORS_SUMMER :
-        COLORS_GLITTER
-      return palette[Math.floor(Math.random() * palette.length)]
+      const ts: TrailSettings = settingsRef.current[themeRef.current as Theme]
+      const hueShift = (Math.random() - 0.5) * 50
+      const hue = ((ts.hue + hueShift) % 360 + 360) % 360
+      const sat = Math.floor(Math.random() * 20 + 80)  // 80–100%
+      const lig = Math.floor(Math.random() * 20 + 55)  // 55–75%
+      return `hsl(${hue}, ${sat}%, ${lig}%)`
     }
 
     // Cursor trail particle – bright, fatty, long-lived
@@ -75,16 +73,18 @@ export function SparkleCanvas() {
       if (particles.length >= MAX_PARTICLES) particles.shift()
       const isWinter = themeRef.current === 'winter'
       const isSummer = themeRef.current === 'summer'
+      const sMult = settingsRef.current[themeRef.current as Theme].sizeMultiplier
       particles.push({
         x,
         y,
         vx: (Math.random() - 0.5) * (isWinter ? 3 : 4),
         vy: -(Math.random() * 3.5 + 1),
-        size: isWinter
+        size: (isWinter
           ? Math.random() * 9 + 5          // 5–14px — big icy shards
           : isSummer
           ? Math.random() * 5 + 3          // 3–8px — small blossoms
-          : Math.random() * 4.5 + 2.5,     // original glitter size
+          : Math.random() * 4.5 + 2.5      // original glitter size
+        ) * sMult,
         color: randomColor(),
         life: 0,
         maxLife: isWinter
@@ -139,9 +139,9 @@ export function SparkleCanvas() {
 
     const onMouseMove = (e: MouseEvent) => {
       if (pausedRef.current) return
-      // Keep spawn count consistent across themes
-      const base = 2
-      const count = Math.floor(Math.random() * 2) + base
+      const qMult = settingsRef.current[themeRef.current as Theme].quantityMultiplier
+      const base = (Math.floor(Math.random() * 2) + 2) * qMult
+      const count = Math.max(0, Math.round(base))
       for (let i = 0; i < count; i++) spawnTrailParticle(e.clientX, e.clientY)
     }
     window.addEventListener('mousemove', onMouseMove)
@@ -227,13 +227,7 @@ export function SparkleCanvas() {
 
         const t = themeRef.current
 
-        // Force particle color to always match current theme palette
-        // (guards against any residual particles from a previous theme)
-        if (t === 'winter' && !COLORS_WINTER.includes(p.color)) {
-          p.color = COLORS_WINTER[Math.floor(Math.random() * COLORS_WINTER.length)]
-        } else if (t === 'summer' && !COLORS_SUMMER.includes(p.color)) {
-          p.color = COLORS_SUMMER[Math.floor(Math.random() * COLORS_SUMMER.length)]
-        }
+        // Stale particles from a previous theme are flushed on theme-switch above
 
         ctx.save()
         ctx.globalAlpha = alpha
@@ -253,12 +247,10 @@ export function SparkleCanvas() {
             ctx.stroke()
           }
         } else if (t === 'summer') {
-          // Simple circle blossom — pink/peach dot with a small yellow centre
-          const petalColors = ['#FFB7C5', '#FF80AA', '#FF93B0', '#FFC0CB', '#FFD1DC']
-          const pColor = petalColors[Math.floor((p.x + p.y) * 0.05) % petalColors.length]
+          // Simple circle blossom — uses p.color so the hue slider applies
           ctx.shadowBlur = 6
-          ctx.shadowColor = pColor
-          ctx.fillStyle = pColor
+          ctx.shadowColor = p.color
+          ctx.fillStyle = p.color
           ctx.beginPath()
           ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
           ctx.fill()

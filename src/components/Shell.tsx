@@ -3,17 +3,19 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
-import { BookOpen, MessageSquare, RotateCcw, BookText, Volume2, VolumeX, Sparkles, LogOut, Languages, Snowflake, Sun } from 'lucide-react'
+import { BookOpen, MessageSquare, RotateCcw, BookText, Volume2, VolumeX, Sparkles, LogOut, Languages, Snowflake, Sun, SlidersHorizontal } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useStreak } from '@/hooks/useStreak'
 import { useSound } from '@/hooks/useSound'
 import { useSparkle } from '@/contexts/SparkleContext'
 import { useCardDirection } from '@/contexts/CardDirectionContext'
 import { useTheme, type Theme } from '@/contexts/ThemeContext'
+import { useCursorTrailSettings } from '@/contexts/CursorTrailSettingsContext'
 import { AslanCameo } from '@/components/AslanCameo'
 import { SnowLayer } from '@/components/themes/SnowLayer'
 import { SunraysLayer } from '@/components/themes/SunraysLayer'
 import { PetalLayer } from '@/components/themes/PetalLayer'
+import { CursorTrailSettingsPanel } from '@/components/CursorTrailSettingsPanel'
 import { cn } from '@/lib/utils'
 
 const NAV_ITEMS = [
@@ -31,6 +33,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const { paused, togglePaused } = useSparkle()
   const { direction, toggle: toggleDirection } = useCardDirection()
   const { theme, setTheme } = useTheme()
+  const { settings, updateThemeSettings, resetTheme, defaults } = useCursorTrailSettings()
 
   // Desktop-only features (coarse pointer = touch device)
   const [isDesktop, setIsDesktop] = useState(false)
@@ -41,6 +44,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   // Manual Aslan summon
   const [aslanSummoned, setAslanSummoned] = useState(false)
   const [lionBtnShaking, setLionBtnShaking] = useState(false)
+  const [trailSettingsOpen, setTrailSettingsOpen] = useState(false)
 
   const handleSummonAslan = () => {
     // Shake the button
@@ -155,6 +159,31 @@ export function Shell({ children }: { children: React.ReactNode }) {
           >
             <Sparkles size={22} strokeWidth={2.5} />
           </button>
+          {/* Trail settings — desktop only */}
+          {isDesktop && (
+            <div className="relative hidden md:block">
+              <button
+                onClick={() => setTrailSettingsOpen(o => !o)}
+                title="Cursor trail settings"
+                className={cn(
+                  'rounded-xl p-2 transition-colors hover:bg-white/10',
+                  trailSettingsOpen ? 'bg-white/10 text-white' : 'text-white/40'
+                )}
+              >
+                <SlidersHorizontal size={18} strokeWidth={2.5} />
+              </button>
+              {trailSettingsOpen && (
+                <CursorTrailSettingsPanel
+                  theme={theme}
+                  settings={settings[theme]}
+                  defaults={defaults[theme]}
+                  onUpdate={partial => updateThemeSettings(theme, partial)}
+                  onReset={() => resetTheme(theme)}
+                  onClose={() => setTrailSettingsOpen(false)}
+                />
+              )}
+            </div>
+          )}
           <button
             onClick={() => signOut()}
             title="Sign out"

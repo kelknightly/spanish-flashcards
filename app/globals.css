@@ -330,3 +330,47 @@
   to   { transform: rotate(360deg); }
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   CURSOR TRAIL SETTINGS SLIDERS
+   ═══════════════════════════════════════════════════════════════════ */
+.trail-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 9999px;
+  background: rgba(255 255 255 / 0.15);
+  outline: none;
+  cursor: pointer;
+}
+
+.trail-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--thumb-color, #ffffff);
+  border: 2px solid rgba(255 255 255 / 0.6);
+  box-shadow: 0 0 6px var(--thumb-color, rgba(255 255 255 / 0.5));
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.trail-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--thumb-color, #ffffff);
+  border: 2px solid rgba(255 255 255 / 0.6);
+  box-shadow: 0 0 6px var(--thumb-color, rgba(255 255 255 / 0.5));
+  cursor: pointer;
+}
+
+.trail-slider:hover::-webkit-slider-thumb {
+  transform: scale(1.2);
+}
+
+.trail-slider:hover::-moz-range-thumb {
+  transform: scale(1.2);
+}
+

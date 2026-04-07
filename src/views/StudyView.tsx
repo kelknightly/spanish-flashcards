@@ -327,7 +327,6 @@ export function StudyView({ deckId, bookNumber, chapterNumber, types }: Props) {
       if (next >= cards.length) {
         // Session complete — clear saved progress
         if (progressKey) localStorage.removeItem(progressKey)
-        play('complete')
         setViewState('complete')
         // Check personal best (fire-and-forget)
         if (session?.access_token) {

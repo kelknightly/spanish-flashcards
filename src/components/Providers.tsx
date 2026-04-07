@@ -4,6 +4,7 @@ import { type ReactNode } from 'react'
 import { isSupabaseConfigured, envDiagnostic } from '@/lib/supabase'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { CardDirectionProvider } from '@/contexts/CardDirectionContext'
+import { CursorTrailSettingsProvider } from '@/contexts/CursorTrailSettingsContext'
 
 function SetupMessage() {
   return (
@@ -29,5 +30,5 @@ export function Providers({ children }: { children: ReactNode }) {
   if (!isSupabaseConfigured) {
     return <SetupMessage />
   }
-  return <AuthProvider><CardDirectionProvider>{children}</CardDirectionProvider></AuthProvider>
+  return <AuthProvider><CardDirectionProvider><CursorTrailSettingsProvider>{children}</CursorTrailSettingsProvider></CardDirectionProvider></AuthProvider>
 }
