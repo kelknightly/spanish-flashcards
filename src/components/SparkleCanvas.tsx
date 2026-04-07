@@ -2,12 +2,15 @@
 
 import { useEffect, useRef } from 'react'
 import { useSparkle } from '@/contexts/SparkleContext'
+import { useTheme } from '@/contexts/ThemeContext'
 
-const COLORS = [
+const COLORS_GLITTER = [
   '#FF2D9B', '#9B2DFF', '#2DAAFF', '#2DFF9B',
   '#FFD700', '#FFFFFF', '#FF6BD6', '#A78BFA',
   '#FF9500', '#FF3BFF', '#00FFF0', '#FFFA65',
 ]
+const COLORS_WINTER = ['#FFFFFF', '#A8DAFF', '#5BB8FF', '#D0EEFF', '#E8F4FF', '#C8E8FF', '#B0CFFF']
+const COLORS_SUMMER = ['#FFB800', '#FF6B35', '#FFE066', '#7FD56F', '#FF9ED2', '#FFF5CC', '#FF8C42', '#FFD700']
 
 interface Particle {
   x: number
@@ -32,8 +35,11 @@ const MAX_PARTICLES = 500
 export function SparkleCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const { registerBurst, paused } = useSparkle()
+  const { theme } = useTheme()
   const pausedRef = useRef(paused)
+  const themeRef = useRef(theme)
   useEffect(() => { pausedRef.current = paused }, [paused])
+  useEffect(() => { themeRef.current = theme }, [theme])
 
   useEffect(() => {
     // Only run on pointer-precise (non-touch) devices
@@ -56,7 +62,13 @@ export function SparkleCanvas() {
     resize()
     window.addEventListener('resize', resize)
 
-    const randomColor = () => COLORS[Math.floor(Math.random() * COLORS.length)]
+    const randomColor = () => {
+      const palette =
+        themeRef.current === 'winter' ? COLORS_WINTER :
+        themeRef.current === 'summer' ? COLORS_SUMMER :
+        COLORS_GLITTER
+      return palette[Math.floor(Math.random() * palette.length)]
+    }
 
     // Cursor trail particle – bright, fatty, long-lived
     const spawnTrailParticle = (x: number, y: number) => {
@@ -117,8 +129,9 @@ export function SparkleCanvas() {
 
     const onMouseMove = (e: MouseEvent) => {
       if (pausedRef.current) return
-      // Spawn 3–5 trail particles per move event
-      const count = Math.floor(Math.random() * 3) + 3
+      // Spawn more particles for summer (lush petal trail)
+      const base = themeRef.current === 'summer' ? 5 : 3
+      const count = Math.floor(Math.random() * 3) + base
       for (let i = 0; i < count; i++) spawnTrailParticle(e.clientX, e.clientY)
     }
     window.addEventListener('mousemove', onMouseMove)
@@ -172,8 +185,17 @@ export function SparkleCanvas() {
         const p = particles[i]
         p.x += p.vx
         p.y += p.vy
-        p.vy += p.isBurst ? 0.12 : 0.07 // gravity – burst falls faster/more dramatically
-        p.vx *= 0.98                      // slight air resistance
+        // Theme-specific physics
+        if (themeRef.current === 'winter') {
+          p.vy += p.isBurst ? 0.16 : 0.08  // heavier gravity = snow falls fast
+          p.vx += (Math.random() - 0.5) * 0.06  // blowing sideways
+        } else if (themeRef.current === 'summer') {
+          p.vy += p.isBurst ? 0.06 : 0.01  // light gravity — petals float
+          p.vy = Math.max(p.vy, -1.2)      // cap upward drift
+        } else {
+          p.vy += p.isBurst ? 0.12 : 0.07  // original glitter gravity
+        }
+        p.vx *= 0.98                        // air resistance
         p.life++
 
         const alpha = 1 - p.life / p.maxLife
@@ -182,22 +204,54 @@ export function SparkleCanvas() {
           continue
         }
 
+        const t = themeRef.current
+
         ctx.save()
         ctx.globalAlpha = alpha
-        ctx.fillStyle = p.color
-        ctx.shadowBlur = p.isBurst ? 22 : 14
-        ctx.shadowColor = p.color
-        ctx.beginPath()
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
-        ctx.fill()
-        // Extra inner glow for burst particles
-        if (p.isBurst) {
-          ctx.globalAlpha = alpha * 0.4
-          ctx.fillStyle = '#ffffff'
+
+        if (t === 'winter') {
+          // 6-arm asterisk / snowflake stroke
+          ctx.strokeStyle = p.color
+          ctx.lineWidth = p.size * 0.35
+          ctx.shadowBlur = p.isBurst ? 18 : 10
+          ctx.shadowColor = p.color
+          ctx.lineCap = 'round'
+          for (let arm = 0; arm < 3; arm++) {
+            const angle = (arm * Math.PI) / 3
+            ctx.beginPath()
+            ctx.moveTo(p.x - Math.cos(angle) * p.size, p.y - Math.sin(angle) * p.size)
+            ctx.lineTo(p.x + Math.cos(angle) * p.size, p.y + Math.sin(angle) * p.size)
+            ctx.stroke()
+          }
+        } else if (t === 'summer') {
+          // Diamond / petal shape
+          ctx.fillStyle = p.color
+          ctx.shadowBlur = 14
+          ctx.shadowColor = p.color
           ctx.beginPath()
-          ctx.arc(p.x, p.y, p.size * 0.45, 0, Math.PI * 2)
+          ctx.moveTo(p.x, p.y - p.size)
+          ctx.lineTo(p.x + p.size * 0.6, p.y)
+          ctx.lineTo(p.x, p.y + p.size)
+          ctx.lineTo(p.x - p.size * 0.6, p.y)
+          ctx.closePath()
           ctx.fill()
+        } else {
+          // Default glitter: filled circle with inner highlight
+          ctx.fillStyle = p.color
+          ctx.shadowBlur = p.isBurst ? 22 : 14
+          ctx.shadowColor = p.color
+          ctx.beginPath()
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
+          ctx.fill()
+          if (p.isBurst) {
+            ctx.globalAlpha = alpha * 0.4
+            ctx.fillStyle = '#ffffff'
+            ctx.beginPath()
+            ctx.arc(p.x, p.y, p.size * 0.45, 0, Math.PI * 2)
+            ctx.fill()
+          }
         }
+
         ctx.restore()
       }
 

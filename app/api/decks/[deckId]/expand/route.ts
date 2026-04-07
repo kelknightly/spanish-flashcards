@@ -248,9 +248,9 @@ ${instruction}
 ${exclusionClause}
 
 For each item provide:
-- "spanish": the Spanish term exactly as it appears in (or is derived from) the text
-- "english": the English translation  
-- "sourceSentences": an array of 1–2 example sentences from the text (each with "es" and "en" keys)
+- "spanish": the Spanish term exactly as it appears in the text (exact spelling and accents)
+- "english": the English translation
+- "sourceSentences": an array of 1–2 example sentences copied verbatim from the text (each with "es" and "en" keys). CRITICAL: each "es" sentence MUST contain the exact "spanish" term verbatim — same spelling, same accents. Do NOT use a sentence that contains a different conjugation or form of the word; if no sentence contains the exact term, omit sourceSentences entirely.
 
 Return ONLY valid JSON — an array of exactly 10 objects. No markdown, no explanation.
 

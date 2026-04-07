@@ -1,9 +1,8 @@
 'use client'
 
-'use client'
-
-import { Suspense } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useAuth } from '@/contexts/AuthContext'
 import { getBooks } from '@/data/books'
 import { BookListPanel } from '@/components/library/BookListPanel'
 import { ChapterListPanel } from '@/components/library/ChapterListPanel'
@@ -13,6 +12,7 @@ import { TypeBrowseView } from '@/components/library/TypeBrowseView'
 function LibraryContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { session } = useAuth()
 
   const view = searchParams.get('view') ?? 'chapter'
   const selectedBook = searchParams.get('book') ? parseInt(searchParams.get('book')!) : null
@@ -20,6 +20,31 @@ function LibraryContent() {
 
   const books = getBooks()
   const activeBook = books.find((b) => b.bookNumber === selectedBook) ?? null
+
+  // ── Quote of the day ───────────────────────────────────────
+  const [quote, setQuote] = useState<{ quote: string; bookNumber: number; chapterNumber: number } | null>(null)
+
+  useEffect(() => {
+    fetch('/api/quote-of-day')
+      .then((r) => r.json())
+      .then((data) => { if (data.quote) setQuote(data) })
+      .catch(() => {})
+  }, [])
+
+  // ── Nemesis cards ──────────────────────────────────────────
+  type NemesisCard = { vocab_term_id: string; spanish_term: string; english_answer: string; wrong_count: number; total_reviews: number }
+  const [nemesisCards, setNemesisCards] = useState<NemesisCard[]>([])
+  const [nemesisOpen, setNemesisOpen] = useState(true)
+
+  useEffect(() => {
+    if (!session?.access_token) return
+    fetch('/api/nemesis-cards', {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => { if (data.cards?.length >= 3) setNemesisCards(data.cards) })
+      .catch(() => {})
+  }, [session])
 
   const selectBook = (bookNumber: number) => {
     router.push(`/decks?view=chapter&book=${bookNumber}`)
@@ -33,6 +58,51 @@ function LibraryContent() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
+
+      {/* ── Narnia quote of the day ───────────────────────────── */}
+      {quote && (
+        <div className="shrink-0 glass mx-4 mt-3 mb-1 rounded-xl px-4 py-3 flex items-start gap-3 border border-white/10">
+          <span className="text-lg shrink-0 mt-0.5">📖</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-white/50 italic leading-relaxed line-clamp-3">
+              &ldquo;{quote.quote}&rdquo;
+            </p>
+            <p className="text-[10px] text-white/25 mt-1">
+              Book {quote.bookNumber} · Chapter {quote.chapterNumber}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Nemesis words ─────────────────────────────────────── */}
+      {nemesisCards.length >= 3 && (
+        <div className="shrink-0 mx-4 mt-1 mb-1">
+          <button
+            onClick={() => setNemesisOpen((o) => !o)}
+            className="flex items-center gap-2 text-xs font-semibold text-neon-pink/80 hover:text-neon-pink transition-colors w-full py-1.5"
+          >
+            <span>🗡️ Nemesis Words</span>
+            <span className="text-white/25 font-normal">{nemesisOpen ? '▲' : '▼'}</span>
+          </button>
+          {nemesisOpen && (
+            <div className="glass rounded-xl overflow-hidden border border-neon-pink/15">
+              {nemesisCards.map((c, i) => (
+                <div
+                  key={c.vocab_term_id}
+                  className={`flex items-center gap-3 px-4 py-2.5 ${i < nemesisCards.length - 1 ? 'border-b border-white/5' : ''}`}
+                >
+                  <span className="text-sm font-semibold text-white flex-1 truncate">{c.spanish_term}</span>
+                  <span className="text-xs text-white/40 flex-1 truncate">{c.english_answer}</span>
+                  <span className="text-[10px] shrink-0 px-2 py-0.5 rounded-full bg-neon-pink/15 text-neon-pink font-semibold">
+                    ✗ {c.wrong_count}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Tab bar ──────────────────────────────────────────── */}
       <header className="shrink-0 flex items-center gap-1 px-4 py-3 border-b border-white/10 bg-brand-surface/60 backdrop-blur">
         <h1 className="text-sm font-bold text-neon-pink text-glow-pink mr-4">My Decks</h1>

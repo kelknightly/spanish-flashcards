@@ -6,6 +6,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { SparkleContext } from '@/contexts/SparkleContext'
 import { useSound } from '@/hooks/useSound'
 import { CEFR_NOUN_NEXT, CEFR_NOUN_NEXT_LABEL } from '@/data/books'
+import { useCardDirection } from '@/contexts/CardDirectionContext'
+import { ConfettiCannon } from '@/components/ConfettiCannon'
 
 interface SourceSentence {
   es: string
@@ -20,6 +22,7 @@ interface Card {
   position: number
   vocab_term_id: string
   isNew: boolean
+  direction: 'es-to-en' | 'en-to-es'
 }
 
 interface Deck {
@@ -102,6 +105,9 @@ function highlightTerm(sentence: string, term: string): (string | React.ReactEle
 export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
   const { session } = useAuth()
   const router = useRouter()
+  const { direction } = useCardDirection()
+  // Snapshot direction at session start — mid-session toggles don't disrupt the deck
+  const sessionDirection = useRef(direction)
 
   // Deck data
   const [viewState, setViewState] = useState<'loading' | 'error' | 'studying' | 'complete'>('loading')
@@ -121,6 +127,9 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
   // Scoreboard
   const [correct, setCorrect] = useState(0)
   const [incorrect, setIncorrect] = useState(0)
+
+  // Personal best toast
+  const [toastMsg, setToastMsg] = useState<string | null>(null)
 
   // Learning steps: tracks how many in-session attempts a card has had (by card id)
   const learningProgress = useRef<Map<string, number>>(new Map())
@@ -156,7 +165,7 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
           setViewState('error')
         } else {
           setDeck(data.deck)
-          setCards(data.cards)
+          setCards((data.cards as Omit<Card, 'direction'>[]).map((c) => ({ ...c, direction: sessionDirection.current })))
           setViewState('studying')
           setTimeout(() => inputRef.current?.focus(), 200)
         }
@@ -207,6 +216,7 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
           spanishTerm: currentCard.spanish_term,
           englishAnswer: currentCard.english_answer,
           sourceSentences: currentCard.source_sentences,
+          direction: currentCard.direction,
         }),
       })
       const result: EvalResult = await res.json()
@@ -269,11 +279,27 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
   }, [currentCard, session, answer, cardState, currentIdx, triggerBurst, play])
 
   const nextCard = useCallback(() => {
-    const advance = (fromIdx: number) => {
+    const advance = () => {
       const next = currentIdx + 1
       if (next >= cards.length) {
         play('complete')
         setViewState('complete')
+        // Check personal best (fire-and-forget)
+        if (session?.access_token) {
+          fetch('/api/personal-best', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({ count: cards.length }),
+          })
+            .then((r) => r.json())
+            .then((data) => {
+              if (data.isNewRecord) {
+                setToastMsg(`🏆 New record! You studied ${data.newRecord} cards today!`)
+                setTimeout(() => setToastMsg(null), 5000)
+              }
+            })
+            .catch(() => {})
+        }
       } else {
         setCurrentIdx(next)
         setCardState('input')
@@ -284,7 +310,7 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
         setTimeout(() => inputRef.current?.focus(), 100)
       }
     }
-    advance(currentIdx)
+    advance()
   }, [currentIdx, cards, play])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -332,6 +358,13 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
 
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
+        <ConfettiCannon />
+        {/* Personal best toast */}
+        {toastMsg && (
+          <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 glass rounded-xl px-5 py-3 text-sm font-semibold text-neon-gold border border-neon-gold/30 shadow-xl animate-pulse pointer-events-none">
+            {toastMsg}
+          </div>
+        )}
         <div className="glass card-shimmer rounded-2xl p-10 text-center max-w-md w-full">
           <div className="text-5xl mb-4">{passed ? '🎉' : '💪'}</div>
           <h1 className="text-3xl font-bold text-neon-purple text-glow-purple mb-1">
@@ -507,17 +540,27 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
           style={{ height: 'clamp(320px, 50vh, 480px)' }}
         >
           <div className={`flip-card-inner ${flipped ? 'flipped' : ''}`}>
-            {/* Front — Spanish prompt */}
+            {/* Front — prompt (direction-aware) */}
             <div className="flip-card-front glass rounded-2xl flex flex-col items-center justify-between p-8">
               <div className="flex-1 flex flex-col items-center justify-center gap-6 w-full">
-                {/* Learning step badge */}
-                {learningProgress.current.get(currentCard?.id) === 0 && (
-                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-neon-blue/20 text-neon-blue border border-neon-blue/30">
-                    Learning — 2nd pass
-                  </span>
-                )}
+                {/* Badges */}
+                <div className="flex flex-col items-center gap-1.5">
+                  {learningProgress.current.get(currentCard?.id) === 0 && (
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-neon-blue/20 text-neon-blue border border-neon-blue/30">
+                      Learning — 2nd pass
+                    </span>
+                  )}
+                  {currentCard?.direction === 'en-to-es' && (
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-neon-gold/20 text-neon-gold border border-neon-gold/30">
+                      Produce Spanish
+                    </span>
+                  )}
+                </div>
+
                 <p className="text-4xl md:text-5xl font-bold text-white text-center leading-tight">
-                  {currentCard?.spanish_term}
+                  {currentCard?.direction === 'en-to-es'
+                    ? currentCard?.english_answer
+                    : currentCard?.spanish_term}
                 </p>
 
                 {/* Source sentence reveal */}
@@ -525,7 +568,11 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
                   <div className="text-center">
                     {showSentence ? (
                       <div className="text-sm text-white/60 italic max-w-sm">
-                        <p className="text-neon-blue/80">{highlightTerm(currentCard.source_sentences[0].es, currentCard.spanish_term)}</p>
+                        {currentCard.direction === 'en-to-es' ? (
+                          <p className="text-white/50">{currentCard.source_sentences[0].en}</p>
+                        ) : (
+                          <p className="text-neon-blue/80">{highlightTerm(currentCard.source_sentences[0].es, currentCard.spanish_term)}</p>
+                        )}
                       </div>
                     ) : (
                       <button
@@ -547,7 +594,7 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
                   onChange={(e) => setAnswer(e.target.value)}
                   onKeyDown={handleKeyDown}
                   disabled={cardState !== 'input'}
-                  placeholder="Type the English translation…"
+                  placeholder={currentCard?.direction === 'en-to-es' ? 'Type the Spanish…' : 'Type the English translation…'}
                   rows={2}
                   className="w-full resize-none rounded-xl bg-white/5 border border-white/15 px-4 py-3 text-white placeholder:text-white/25 focus:outline-none focus:border-neon-purple/60 disabled:opacity-50 transition-colors"
                 />
@@ -595,7 +642,9 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
                   <div className="mb-4">
                     <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Answer</p>
                     <p className="text-xl font-semibold text-white">
-                      {currentCard?.english_answer}
+                      {currentCard?.direction === 'en-to-es'
+                        ? currentCard?.spanish_term
+                        : currentCard?.english_answer}
                     </p>
                   </div>
 

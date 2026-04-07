@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { SparkleContext } from '@/contexts/SparkleContext'
 import { useSound } from '@/hooks/useSound'
+import { useCardDirection } from '@/contexts/CardDirectionContext'
+import { ConfettiCannon } from '@/components/ConfettiCannon'
 
 interface SourceSentence {
   es: string
@@ -65,6 +67,9 @@ function highlightTerm(sentence: string, term: string): (string | React.ReactEle
 export function ReviewView() {
   const { session } = useAuth()
   const router = useRouter()
+  const { direction } = useCardDirection()
+  // Snapshot direction at session start — mid-session toggles don't disrupt the queue
+  const sessionDirection = useRef(direction)
 
   const [viewState, setViewState] = useState<'loading' | 'empty' | 'error' | 'reviewing' | 'complete'>('loading')
   const [errorMsg, setErrorMsg] = useState('')
@@ -83,6 +88,9 @@ export function ReviewView() {
   const [correct, setCorrect] = useState(0)
   const [incorrect, setIncorrect] = useState(0)
 
+  // Personal best toast
+  const [toastMsg, setToastMsg] = useState<string | null>(null)
+
   // Requeue throttle: tracks how many times a card has been re-inserted this session
   const requeueCount = useRef<Map<string, number>>(new Map())
 
@@ -93,7 +101,7 @@ export function ReviewView() {
 
   useEffect(() => {
     if (!session) return
-    fetch('/api/review', {
+    fetch(`/api/review?mode=${sessionDirection.current}`, {
       headers: { Authorization: `Bearer ${session.access_token}` },
     })
       .then((r) => r.json())
@@ -175,6 +183,22 @@ export function ReviewView() {
   const nextCard = useCallback(() => {
     if (currentIdx + 1 >= cards.length) {
       setViewState('complete')
+      // Check personal best (fire-and-forget)
+      if (session?.access_token) {
+        fetch('/api/personal-best', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ count: cards.length }),
+        })
+          .then((r) => r.json())
+          .then((data) => {
+            if (data.isNewRecord) {
+              setToastMsg(`🏆 New record! You reviewed ${data.newRecord} cards today!`)
+              setTimeout(() => setToastMsg(null), 5000)
+            }
+          })
+          .catch(() => {})
+      }
     } else {
       setCurrentIdx((i) => i + 1)
       setCardState('input')
@@ -252,6 +276,13 @@ export function ReviewView() {
 
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
+        <ConfettiCannon />
+        {/* Personal best toast */}
+        {toastMsg && (
+          <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 glass rounded-xl px-5 py-3 text-sm font-semibold text-neon-gold border border-neon-gold/30 shadow-xl transition-all animate-pulse pointer-events-none">
+            {toastMsg}
+          </div>
+        )}
         <div className="glass card-shimmer rounded-2xl p-10 text-center max-w-md w-full">
           <div className="text-5xl mb-4">{passed ? '🎉' : '💪'}</div>
           <h1 className="text-3xl font-bold text-neon-purple text-glow-purple mb-1">

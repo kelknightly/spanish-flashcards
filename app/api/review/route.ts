@@ -15,6 +15,9 @@ export async function GET(request: NextRequest) {
   const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const { searchParams } = new URL(request.url)
+  const modeParam = searchParams.get('mode') as 'es-to-en' | 'en-to-es' | null
+
   const sb = createClient(url, anonKey, {
     global: { headers: { Authorization: `Bearer ${token}` } },
   })
@@ -62,11 +65,18 @@ export async function GET(request: NextRequest) {
     const vocab = prog.vocabulary_terms as unknown as { spanish_term: string } | null
     const deck = card.decks as unknown as { name: string } | null
 
-    // Assign direction: cards with < 3 repetitions always show ES→EN (recognition).
-    // Cards with 3+ repetitions get a 50/50 chance of EN→ES (production).
-    const repetitions = (prog as unknown as { repetitions: number }).repetitions ?? 0
-    const direction: 'es-to-en' | 'en-to-es' =
-      repetitions >= 3 && Math.random() < 0.5 ? 'en-to-es' : 'es-to-en'
+    // Assign direction based on mode param:
+    // - explicit 'en-to-es' or 'es-to-en' → use that for all cards
+    // - otherwise → 50/50 random for cards with 3+ reps, ES→EN for newer cards
+    let direction: 'es-to-en' | 'en-to-es'
+    if (modeParam === 'en-to-es') {
+      direction = 'en-to-es'
+    } else if (modeParam === 'es-to-en') {
+      direction = 'es-to-en'
+    } else {
+      const repetitions = (prog as unknown as { repetitions: number }).repetitions ?? 0
+      direction = repetitions >= 3 && Math.random() < 0.5 ? 'en-to-es' : 'es-to-en'
+    }
 
     cards.push({
       id: card.id,

@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { Shell } from '@/components/Shell'
+import { WardrobeScreen } from '@/components/WardrobeScreen'
 
 export function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -18,11 +19,7 @@ export function ProtectedLayout({ children }: { children: React.ReactNode }) {
   }, [user, loading, router, pathname])
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-brand-bg">
-        <p className="text-sm text-white/50">Loading…</p>
-      </div>
-    )
+    return <WardrobeScreen />
   }
 
   if (!user) return null

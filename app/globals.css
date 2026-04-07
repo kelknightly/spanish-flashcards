@@ -148,3 +148,176 @@
 .text-glow-green {
   text-shadow: 0 0 10px #2DFF9B, 0 0 20px #2DFF9B44;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   THEME: WINTER — White Witch's court, frozen solid
+   ═══════════════════════════════════════════════════════════════════ */
+[data-theme="winter"] {
+  --background: 218 60% 4%;       /* #010814 near-black void */
+  --foreground: 0 0% 100%;
+  --card: 218 55% 8%;             /* #050F22 */
+  --card-foreground: 0 0% 100%;
+  --popover: 218 55% 8%;
+  --popover-foreground: 0 0% 100%;
+  --primary: 207 80% 83%;         /* #A8DAFF pale ice */
+  --primary-foreground: 218 60% 8%;
+  --secondary: 207 90% 67%;       /* #5BB8FF */
+  --secondary-foreground: 0 0% 100%;
+  --muted: 218 40% 14%;
+  --muted-foreground: 207 40% 70%;
+  --accent: 210 70% 85%;          /* #C8E8FF */
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 80% 55%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 210 45% 18%;
+  --input: 218 45% 12%;
+  --ring: 207 80% 83%;
+}
+
+[data-theme="winter"] body {
+  background-color: #010814;
+}
+
+[data-theme="winter"] .bg-animated {
+  background: radial-gradient(
+    ellipse at 30% 40%,
+    #0a1e3d 0%,
+    #010814 40%,
+    #050d1f 70%,
+    #010814 100%
+  );
+  background-size: 300% 300%;
+  animation: bgshift-winter 40s ease infinite;
+}
+
+[data-theme="winter"] .glass {
+  background: rgba(10, 30, 60, 0.78);
+  border: 1px solid rgba(168, 218, 255, 0.18);
+}
+
+[data-theme="winter"] .text-glow-pink {
+  text-shadow: 0 0 10px #A8DAFF, 0 0 22px #5BB8FF44;
+}
+[data-theme="winter"] .text-glow-purple {
+  text-shadow: 0 0 10px #7EC8FF, 0 0 20px #5BB8FF44;
+}
+[data-theme="winter"] .text-glow-green {
+  text-shadow: 0 0 10px #A8DAFF, 0 0 20px #C8E8FF44;
+}
+
+@keyframes bgshift-winter {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   THEME: SUMMER — Aslan's country, disgustingly joyful
+   ═══════════════════════════════════════════════════════════════════ */
+[data-theme="summer"] {
+  --background: 25 100% 5%;       /* #1A0800 deep amber-black */
+  --foreground: 0 0% 100%;
+  --card: 25 100% 9%;             /* #2D1200 */
+  --card-foreground: 0 0% 100%;
+  --popover: 25 100% 9%;
+  --popover-foreground: 0 0% 100%;
+  --primary: 43 100% 50%;         /* #FFB800 sunflower gold */
+  --primary-foreground: 25 100% 5%;
+  --secondary: 21 100% 60%;       /* #FF6B35 tangerine */
+  --secondary-foreground: 0 0% 100%;
+  --muted: 25 60% 16%;
+  --muted-foreground: 43 50% 70%;
+  --accent: 112 55% 63%;          /* #7FD56F leaf green */
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 80% 55%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 35 60% 22%;
+  --input: 25 70% 14%;
+  --ring: 43 100% 50%;
+}
+
+[data-theme="summer"] body {
+  background-color: #1A0800;
+}
+
+[data-theme="summer"] .bg-animated {
+  background: radial-gradient(
+    ellipse at 25% 55%,
+    #3d1a00 0%,
+    #1a0800 40%,
+    #2a1000 70%,
+    #1a0800 100%
+  );
+  background-size: 300% 300%;
+  animation: bgshift-summer 25s ease infinite;
+}
+
+[data-theme="summer"] .glass {
+  background: rgba(55, 22, 0, 0.70);
+  border: 1px solid rgba(255, 184, 0, 0.22);
+}
+
+[data-theme="summer"] .text-glow-pink {
+  text-shadow: 0 0 10px #FFB800, 0 0 22px #FF6B3544;
+}
+[data-theme="summer"] .text-glow-purple {
+  text-shadow: 0 0 10px #FF8C42, 0 0 20px #FFB80044;
+}
+[data-theme="summer"] .text-glow-green {
+  text-shadow: 0 0 10px #7FD56F, 0 0 20px #7FD56F44;
+}
+
+@keyframes bgshift-summer {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   AMBIENT LAYER ANIMATIONS
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Snow drift — winter */
+@keyframes snowfall {
+  0% {
+    transform: translateY(-30px) translateX(0) rotate(0deg);
+    opacity: 0;
+  }
+  8% { opacity: 1; }
+  40% {
+    transform: translateY(40vh) translateX(var(--drift, 0px)) rotate(120deg);
+  }
+  80% {
+    transform: translateY(80vh) translateX(calc(var(--drift, 0px) * -0.5)) rotate(260deg);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(115vh) translateX(0) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+/* Petal drift — summer */
+@keyframes petal-fall {
+  0% {
+    transform: translateY(-40px) translateX(0) rotate(var(--start-rot, 0deg));
+    opacity: 0;
+  }
+  8% { opacity: 0.9; }
+  50% {
+    transform: translateY(50vh) translateX(var(--drift-x, 70px)) rotate(calc(var(--start-rot, 0deg) + 200deg));
+    opacity: 0.85;
+  }
+  92% { opacity: 0.7; }
+  100% {
+    transform: translateY(115vh) translateX(calc(var(--drift-x, 70px) * 1.4)) rotate(calc(var(--start-rot, 0deg) + 400deg));
+    opacity: 0;
+  }
+}
+
+/* Sunray rotation — summer */
+@keyframes sunray-rotate {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+

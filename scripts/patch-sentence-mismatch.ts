@@ -89,10 +89,35 @@ function getChapterText(bookNumber: number, chapterNumber: number): string {
   try { return readFileSync(file, 'utf8') } catch { return '' }
 }
 
-/** Return true if `term` appears verbatim (case-insensitive) in `sentence`. */
+const ARTICLE_RE = /^(?:el|la|los|las|un|una|unos|unas)\s+/i
+
+/**
+ * Return true if `term` (or its article-stripped core) appears verbatim
+ * (case-insensitive) in `sentence`. This mirrors the logic used by
+ * `highlightTerm` in StudyView.tsx so we only flag cards that would genuinely
+ * fail to highlight — not noun cards where the article variant differs.
+ */
 function termInSentence(sentence: string, term: string): boolean {
-  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return new RegExp(escaped, 'i').test(sentence)
+  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+  // 1. Try the full term as-is
+  if (new RegExp(escape(term), 'i').test(sentence)) return true
+
+  // 2. Try slash-separated variants (e.g. "the bow/curtsy")
+  const slashParts = term.split('/')
+  for (const part of slashParts) {
+    const p = part.trim()
+    if (p && new RegExp(escape(p), 'i').test(sentence)) return true
+  }
+
+  // 3. Try each variant with leading article stripped
+  const candidates = [term, ...slashParts.map((p) => p.trim())].filter(Boolean)
+  for (const candidate of candidates) {
+    const core = candidate.replace(ARTICLE_RE, '').trim()
+    if (core && new RegExp(escape(core), 'i').test(sentence)) return true
+  }
+
+  return false
 }
 
 /**

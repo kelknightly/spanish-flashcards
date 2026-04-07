@@ -110,6 +110,24 @@ Respond ONLY with valid JSON, no extra text:
 
   const isNewCard = !progressRow
 
+  // Append snarky one-liner if this is a wrong answer and it's been wrong 3+ times before
+  const wrongCount = (progressRow?.total_reviews ?? 0) - (progressRow?.total_correct ?? 0)
+  if (qualityScore < 3 && wrongCount >= 3) {
+    const snarkyLines = [
+      ' ¡Nos vemos de nuevo! This one really has a grudge against you.',
+      ` That's ${wrongCount} times now. Maybe try writing it on your hand? Both hands?`,
+      ' Even Mr. Beaver would know this one by now.',
+      ' Aslan is watching. He is not angry — just deeply, deeply disappointed.',
+      ' This word has moved in. It has unpacked its bags. It is not leaving.',
+      ' At this rate you and this card are becoming sworn enemies. ¡Enemigos!',
+      ' The White Witch got this one right on the first try. Just saying.',
+      ` ${wrongCount} attempts! Every expert was once a beginner. You are still very much a beginner.`,
+      ' Slow and steady wins the race. You are bringing a very relaxed energy to "steady".',
+      ' Peter and Edmund both got this right. Lucy too. Even Edmund.',
+    ]
+    feedback += '\n\n' + snarkyLines[wrongCount % snarkyLines.length]
+  }
+
   const current = progressRow
     ? {
         easeFactor: progressRow.ease_factor,
