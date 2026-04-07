@@ -23,9 +23,9 @@ export default function RootLayout({
             <div className="bg-animated min-h-screen">
               <Providers>
                 {children}
+                <SparkleCanvas />
               </Providers>
             </div>
-            <SparkleCanvas />
           </ThemeProvider>
         </SparkleProvider>
       </body>
