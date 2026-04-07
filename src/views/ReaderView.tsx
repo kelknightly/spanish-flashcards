@@ -12,11 +12,13 @@ import { ChapterListPanel } from '@/components/library/ChapterListPanel'
 interface TermAnnotation {
   term: string       // lowercase
   subcategory: string
+  translation?: string
 }
 
 interface Span {
   text: string
   subcategory: string | null
+  translation?: string
 }
 
 // ── Subcategory colours & labels ───────────────────────────────────────────
@@ -108,6 +110,13 @@ export const WORD_TYPES: Array<{
     activeClass: 'bg-slate-500/30 text-slate-200 border-slate-400/60',
     dotClass: 'bg-slate-400',
   },
+  {
+    subcategory: 'verb-search',
+    label: 'Verb Search',
+    spanClass: 'bg-teal-400/30 text-teal-200 rounded px-0.5',
+    activeClass: 'bg-teal-400/30 text-teal-200 border-teal-400/60',
+    dotClass: 'bg-teal-400',
+  },
 ]
 
 // Noun subcategories all map to the "nouns" colour group
@@ -131,21 +140,32 @@ function isWordChar(c: string): boolean {
 /**
  * Splits the raw text into spans, tagging each match with its subcategory.
  * Only terms whose subcategory is in `activeSubcategories` are highlighted.
+ * Verb search forms (verbForms) are prepended at highest priority and always highlighted.
  */
 function annotateText(
   text: string,
   terms: TermAnnotation[],
-  activeSubcategories: Set<string>
+  activeSubcategories: Set<string>,
+  verbForms: string[] = []
 ): Span[] {
   if (!text) return []
 
+  // Verb search forms get highest priority — prepend them as special annotations
+  const verbAnnotations: TermAnnotation[] = verbForms.map((f) => ({
+    term: f,
+    subcategory: 'verb-search',
+  }))
+
   // Sort longest first so multi-word terms take priority
-  const sorted = [...terms]
-    .filter((t) => {
-      const normalised = normaliseSubcategory(t.subcategory)
-      return activeSubcategories.has(normalised)
-    })
-    .sort((a, b) => b.term.length - a.term.length)
+  const sorted = [
+    ...verbAnnotations.sort((a, b) => b.term.length - a.term.length),
+    ...[...terms]
+      .filter((t) => {
+        const normalised = normaliseSubcategory(t.subcategory)
+        return activeSubcategories.has(normalised)
+      })
+      .sort((a, b) => b.term.length - a.term.length),
+  ]
 
   const textLower = text.toLowerCase()
   const spans: Span[] = []
@@ -168,6 +188,7 @@ function annotateText(
         spans.push({
           text: text.slice(i, afterIdx),
           subcategory: normaliseSubcategory(annotation.subcategory),
+          translation: annotation.translation,
         })
         i = afterIdx
         matched = true
@@ -196,14 +217,16 @@ function AnnotatedText({
   text,
   terms,
   activeSubcategories,
+  verbForms,
 }: {
   text: string
   terms: TermAnnotation[]
   activeSubcategories: Set<string>
+  verbForms: string[]
 }) {
   const spans = useMemo(
-    () => annotateText(text, terms, activeSubcategories),
-    [text, terms, activeSubcategories]
+    () => annotateText(text, terms, activeSubcategories, verbForms),
+    [text, terms, activeSubcategories, verbForms]
   )
 
   return (
@@ -215,7 +238,7 @@ function AnnotatedText({
         const wordType = getWordType(span.subcategory)
         if (!wordType) return <span key={idx}>{span.text}</span>
         return (
-          <mark key={idx} className={`${wordType.spanClass} cursor-default`} title={wordType.label}>
+          <mark key={idx} className={`${wordType.spanClass} cursor-default`} title={span.translation ? `${span.translation} · ${wordType.label}` : wordType.label}>
             {span.text}
           </mark>
         )
@@ -231,11 +254,23 @@ function FilterBar({
   activeSubcategories,
   onToggle,
   onToggleAll,
+  verbSearch,
+  onVerbSearchChange,
+  onVerbSearchSubmit,
+  isConjugating,
+  verbInfinitive,
+  onVerbSearchClear,
 }: {
   presentTypes: string[]          // normalised subcategories that appear in this chapter
   activeSubcategories: Set<string>
   onToggle: (sub: string) => void
   onToggleAll: () => void
+  verbSearch: string
+  onVerbSearchChange: (value: string) => void
+  onVerbSearchSubmit: () => void
+  isConjugating: boolean
+  verbInfinitive: string | null
+  onVerbSearchClear: () => void
 }) {
   const allActive = presentTypes.every((s) => activeSubcategories.has(s))
 
@@ -271,6 +306,42 @@ function FilterBar({
           </button>
         )
       })}
+
+      {/* Verb search input */}
+      <div className="flex items-center gap-1.5 ml-auto shrink-0">
+        {verbInfinitive ? (
+          <span className="flex items-center gap-1 text-xs font-semibold rounded-full px-3 py-1 border bg-teal-400/20 text-teal-200 border-teal-400/50">
+            {verbInfinitive}
+            <button
+              onClick={onVerbSearchClear}
+              aria-label="Clear verb search"
+              className="ml-1 text-teal-300/70 hover:text-teal-100 transition-colors"
+            >
+              ×
+            </button>
+          </span>
+        ) : (
+          <input
+            type="text"
+            value={verbSearch}
+            onChange={(e) => onVerbSearchChange(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && !isConjugating && verbSearch.trim() && onVerbSearchSubmit()}
+            placeholder="Search verb…"
+            className="text-xs bg-white/5 border border-white/15 rounded-full px-3 py-1 text-white/70 placeholder:text-white/25 focus:outline-none focus:border-teal-400/50 focus:text-white transition-colors w-32"
+          />
+        )}
+        {isConjugating && (
+          <span className="text-teal-400/70 text-xs animate-pulse">looking up…</span>
+        )}
+        {!verbInfinitive && !isConjugating && verbSearch.trim() && (
+          <button
+            onClick={onVerbSearchSubmit}
+            className="text-xs font-semibold rounded-full px-3 py-1 border bg-teal-500/20 text-teal-200 border-teal-400/50 hover:bg-teal-500/30 transition-colors shrink-0"
+          >
+            Search
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -294,6 +365,37 @@ function ReaderContent() {
   const [activeSubcategories, setActiveSubcategories] = useState<Set<string>>(
     new Set(WORD_TYPES.map((w) => w.subcategory))
   )
+
+  // Verb search state — persists across chapter/book changes and navigation away
+  const [verbSearchInput, setVerbSearchInput] = useState('')
+  const [verbForms, setVerbForms] = useState<string[]>([])
+  const [verbInfinitive, setVerbInfinitive] = useState<string | null>(null)
+  const [isConjugating, setIsConjugating] = useState(false)
+
+  // Restore verb search from localStorage on mount (survives navigating away and back)
+  useEffect(() => {
+    try {
+      const storedInfinitive = localStorage.getItem('reader-verb-infinitive')
+      const storedForms = localStorage.getItem('reader-verb-forms')
+      if (storedInfinitive && storedForms) {
+        setVerbInfinitive(storedInfinitive)
+        setVerbForms(JSON.parse(storedForms) as string[])
+      }
+    } catch { /* ignore */ }
+  }, [])
+
+  // Sync verb search to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      if (verbInfinitive && verbForms.length > 0) {
+        localStorage.setItem('reader-verb-infinitive', verbInfinitive)
+        localStorage.setItem('reader-verb-forms', JSON.stringify(verbForms))
+      } else {
+        localStorage.removeItem('reader-verb-infinitive')
+        localStorage.removeItem('reader-verb-forms')
+      }
+    } catch { /* ignore */ }
+  }, [verbInfinitive, verbForms])
 
   // Mobile: which step of the drill-down are we on?
   // 'books' | 'chapters' | 'text'
@@ -357,6 +459,36 @@ function ReaderContent() {
       }
     })
   }, [presentTypes])
+
+  const handleVerbSearchSubmit = useCallback(async () => {
+    const infinitive = verbSearchInput.trim().toLowerCase()
+    if (!infinitive || isConjugating) return
+    setIsConjugating(true)
+    try {
+      const res = await fetch('/api/conjugate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token ?? ''}`,
+        },
+        body: JSON.stringify({ infinitive }),
+      })
+      if (res.ok) {
+        const data = await res.json() as { forms: string[]; infinitive: string }
+        setVerbForms(data.forms)
+        setVerbInfinitive(data.infinitive)
+        setVerbSearchInput('')
+      }
+    } finally {
+      setIsConjugating(false)
+    }
+  }, [verbSearchInput, isConjugating, session])
+
+  const handleVerbSearchClear = useCallback(() => {
+    setVerbForms([])
+    setVerbInfinitive(null)
+    setVerbSearchInput('')
+  }, [])
 
   // ── Mobile layout ──────────────────────────────────────────────────────
   // Renders as a drill-down: Books → Chapters → Text
@@ -448,6 +580,12 @@ function ReaderContent() {
           activeSubcategories={activeSubcategories}
           onToggle={handleToggle}
           onToggleAll={handleToggleAll}
+          verbSearch={verbSearchInput}
+          onVerbSearchChange={setVerbSearchInput}
+          onVerbSearchSubmit={handleVerbSearchSubmit}
+          isConjugating={isConjugating}
+          verbInfinitive={verbInfinitive}
+          onVerbSearchClear={handleVerbSearchClear}
         />
       )}
 
@@ -472,6 +610,7 @@ function ReaderContent() {
                 text={paragraph}
                 terms={terms}
                 activeSubcategories={activeSubcategories}
+                verbForms={verbForms}
               />
             ))}
           </div>
@@ -523,6 +662,12 @@ function ReaderContent() {
                   activeSubcategories={activeSubcategories}
                   onToggle={handleToggle}
                   onToggleAll={handleToggleAll}
+                  verbSearch={verbSearchInput}
+                  onVerbSearchChange={setVerbSearchInput}
+                  onVerbSearchSubmit={handleVerbSearchSubmit}
+                  isConjugating={isConjugating}
+                  verbInfinitive={verbInfinitive}
+                  onVerbSearchClear={handleVerbSearchClear}
                 />
               )}
               <div className="flex-1 overflow-y-auto px-6 py-6 md:px-10 md:py-8">
@@ -548,6 +693,7 @@ function ReaderContent() {
                         text={paragraph}
                         terms={terms}
                         activeSubcategories={activeSubcategories}
+                        verbForms={verbForms}
                       />
                     ))}
                   </div>

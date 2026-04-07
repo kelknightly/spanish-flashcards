@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 
   const { data: deckRows, error } = await sb
     .from('decks')
-    .select('subcategory, cards(spanish_term)')
+    .select('subcategory, cards(spanish_term, english_answer)')
     .eq('user_id', user.id)
     .eq('book_number', book)
     .eq('chapter_number', chapter)
@@ -63,29 +63,31 @@ export async function GET(request: NextRequest) {
     'general',
   ]
 
-  const termMap = new Map<string, string>()
+  const termMap = new Map<string, { subcategory: string; translation: string }>()
 
   for (const deck of deckRows ?? []) {
     const subcategory = (deck.subcategory as string | null) ?? 'general'
-    const cards = deck.cards as Array<{ spanish_term: string }>
+    const cards = deck.cards as Array<{ spanish_term: string; english_answer: string | null }>
     for (const card of cards ?? []) {
       const term = card.spanish_term.toLowerCase()
+      const translation = card.english_answer ?? ''
       const existing = termMap.get(term)
       if (!existing) {
-        termMap.set(term, subcategory)
+        termMap.set(term, { subcategory, translation })
       } else {
-        const existingPriority = SUBCATEGORY_PRIORITY.indexOf(existing)
+        const existingPriority = SUBCATEGORY_PRIORITY.indexOf(existing.subcategory)
         const newPriority = SUBCATEGORY_PRIORITY.indexOf(subcategory)
         if (newPriority < existingPriority) {
-          termMap.set(term, subcategory)
+          termMap.set(term, { subcategory, translation })
         }
       }
     }
   }
 
-  const terms = Array.from(termMap.entries()).map(([term, subcategory]) => ({
+  const terms = Array.from(termMap.entries()).map(([term, { subcategory, translation }]) => ({
     term,
     subcategory,
+    translation,
   }))
 
   return NextResponse.json({ text, terms })

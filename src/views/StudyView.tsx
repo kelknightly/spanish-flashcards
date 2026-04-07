@@ -61,26 +61,30 @@ function highlightTerm(sentence: string, term: string): (string | React.ReactEle
       )
     )
 
-  // Exact phrase match (handles nouns, unchanged forms)
-  const exactParts = sentence.split(new RegExp(`(${escape(term)})`, 'gi'))
-  if (exactParts.length > 1) return renderParts(exactParts)
-
-  // Strip leading article so "el fuego" → "fuego", which matches the contracted
-  // forms "al fuego" (a+el) and "del fuego" (de+el), and English article variants.
   const ARTICLE_RE = /^(?:el|la|los|las|un|una|unos|unas|the|a|an)\s+/i
-  const coreTerm = term.replace(ARTICLE_RE, '').trim()
 
-  // Core exact match — catches contracted/variant articles
-  if (coreTerm && coreTerm !== term) {
-    const coreParts = sentence.split(new RegExp(`(${escape(coreTerm)})`, 'gi'))
-    if (coreParts.length > 1) return renderParts(coreParts)
+  // Build all candidate strings to try, in order of specificity:
+  // 1. The full term as-is
+  // 2. Each slash-separated variant (e.g. "the bow/curtsy" → ["the bow", "curtsy"])
+  // 3. All of the above with leading articles stripped
+  const variants: string[] = [term]
+  const slashParts = term.split('/')
+  if (slashParts.length > 1) variants.push(...slashParts.map((p) => p.trim()))
+
+  const coreVariants = variants.map((v) => v.replace(ARTICLE_RE, '').trim()).filter(Boolean)
+  const candidates = [...new Set([...variants, ...coreVariants])]
+
+  for (const candidate of candidates) {
+    if (!candidate) continue
+    const parts = sentence.split(new RegExp(`(${escape(candidate)})`, 'gi'))
+    if (parts.length > 1) return renderParts(parts)
   }
 
   // Stem prefix fallback — handles conjugated/inflected Spanish forms.
-  // Operates on the core term (skips article) so "el hablar" stems "habl...",
+  // Operates on the core of the first variant so "el hablar" stems "habl...",
   // not "el". (hablar→habl, correr→corr, vivir→viv)
-  const matchTerm = coreTerm || term
-  const firstWord = matchTerm.split(/\s+/)[0]
+  const coreFirst = (coreVariants[0] || term)
+  const firstWord = coreFirst.split(/\s+/)[0]
   const stemLen = Math.max(3, firstWord.length - 2)
   if (firstWord.length >= 4) {
     const stem = escape(firstWord.slice(0, stemLen))
