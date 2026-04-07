@@ -28,6 +28,8 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const bookParam = searchParams.get('book')
   const chapterParam = searchParams.get('chapter')
+  const typesParam = searchParams.get('types') // optional comma-separated subcategory filter
+  const allowedTypes = typesParam ? new Set(typesParam.split(',').map((s) => s.trim()).filter(Boolean)) : null
 
   if (!bookParam || !chapterParam) {
     return NextResponse.json({ error: 'book and chapter are required' }, { status: 400 })
@@ -75,7 +77,9 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const deckIds = [...latestBySubcategory.values()]
+  const deckIds = [...latestBySubcategory.entries()]
+    .filter(([sub]) => !allowedTypes || allowedTypes.has(sub))
+    .map(([, id]) => id)
 
   // 3. Fetch all cards from those decks
   const { data: allCards, error: cardsError } = await sb

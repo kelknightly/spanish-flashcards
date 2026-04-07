@@ -2,11 +2,11 @@ import { redirect } from 'next/navigation'
 import { StudyView } from '@/views/StudyView'
 
 interface Props {
-  searchParams: Promise<{ book?: string; chapter?: string }>
+  searchParams: Promise<{ book?: string; chapter?: string; types?: string }>
 }
 
 export default async function MixedStudyPage({ searchParams }: Props) {
-  const { book, chapter } = await searchParams
+  const { book, chapter, types } = await searchParams
 
   if (!book || !chapter) {
     redirect('/decks')
@@ -19,5 +19,5 @@ export default async function MixedStudyPage({ searchParams }: Props) {
     redirect('/decks')
   }
 
-  return <StudyView deckId="mixed" bookNumber={bookNumber} chapterNumber={chapterNumber} />
+  return <StudyView deckId="mixed" bookNumber={bookNumber} chapterNumber={chapterNumber} types={types} />
 }

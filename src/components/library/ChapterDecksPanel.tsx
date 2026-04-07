@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { DECK_TYPES, getChapterMeta } from '@/data/books'
+import { DECK_TYPES, getChapterMeta, getDeckLabel } from '@/data/books'
 
 /** CEFR level badge colours keyed by subcategory */
 const CEFR_BADGE: Record<string, { label: string; className: string }> = {
@@ -36,6 +36,8 @@ export function ChapterDecksPanel({ bookNumber, chapterNumber }: Props) {
   const [decks, setDecks] = useState<DeckInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [expanding, setExpanding] = useState<string | null>(null)
+  const [showMixedFilter, setShowMixedFilter] = useState(false)
+  const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set())
 
   const chapter = getChapterMeta(bookNumber, chapterNumber)
   const hasText = !!chapter?.hasText
@@ -48,7 +50,16 @@ export function ChapterDecksPanel({ bookNumber, chapterNumber }: Props) {
     })
       .then((r) => r.json())
       .then((data) => {
-        setDecks(data.decks ?? [])
+        const deckList: DeckInfo[] = data.decks ?? []
+        setDecks(deckList)
+        // Derive latest subcategory for each type to pre-select all
+        const latestMap = new Map<string, DeckInfo>()
+        for (const d of deckList) {
+          const key = d.subcategory ?? ''
+          const ex = latestMap.get(key)
+          if (!ex || d.version > ex.version) latestMap.set(key, d)
+        }
+        setSelectedTypes(new Set([...latestMap.keys()].filter(Boolean)))
         setLoading(false)
       })
       .catch(() => setLoading(false))
@@ -215,20 +226,97 @@ export function ChapterDecksPanel({ bookNumber, chapterNumber }: Props) {
       </div>
 
       {/* Mixed Deck — only shown when at least one deck exists */}
-      {latestBySubcategory.size > 0 && (
-        <div className="mt-6 pt-6 border-t border-white/10">
-          <button
-            onClick={() =>
-              router.push(`/decks/mixed?book=${bookNumber}&chapter=${chapterNumber}`)
-            }
-            className="w-full rounded-xl glass border border-neon-blue/40 py-3 px-4 text-sm font-semibold text-neon-blue hover:bg-neon-blue/10 transition-colors flex items-center justify-center gap-2"
-          >
-            <span>🎲</span>
-            <span>Mixed Deck</span>
-            <span className="text-xs font-normal text-white/40 ml-1">20 random cards · all types</span>
-          </button>
-        </div>
-      )}
+      {latestBySubcategory.size > 0 && (() => {
+        const availableSubcats = DECK_TYPES
+          .map((t) => t.subcategory)
+          .filter((s) => latestBySubcategory.has(s)) as string[]
+
+        const allSelected = availableSubcats.every((s) => selectedTypes.has(s))
+        const noneSelected = availableSubcats.every((s) => !selectedTypes.has(s))
+        const selectedCount = availableSubcats.filter((s) => selectedTypes.has(s)).length
+
+        const handleStartMixed = () => {
+          if (noneSelected) return
+          const params = new URLSearchParams({ book: String(bookNumber), chapter: String(chapterNumber) })
+          if (!allSelected) params.set('types', availableSubcats.filter((s) => selectedTypes.has(s)).join(','))
+          router.push(`/decks/mixed?${params.toString()}`)
+        }
+
+        const toggleType = (sub: string) => {
+          setSelectedTypes((prev) => {
+            const next = new Set(prev)
+            if (next.has(sub)) next.delete(sub)
+            else next.add(sub)
+            return next
+          })
+        }
+
+        return (
+          <div className="mt-6 pt-6 border-t border-white/10">
+            {/* Header row */}
+            <button
+              onClick={() => setShowMixedFilter((v) => !v)}
+              className="w-full rounded-xl glass border border-neon-blue/40 py-3 px-4 text-sm font-semibold text-neon-blue hover:bg-neon-blue/10 transition-colors flex items-center gap-2"
+            >
+              <span>🎲</span>
+              <span>Mixed Deck</span>
+              <span className="text-xs font-normal text-white/40 ml-1">
+                20 random cards ·{' '}
+                {allSelected ? 'all types' : `${selectedCount} type${selectedCount !== 1 ? 's' : ''}`}
+              </span>
+              <span className="ml-auto text-white/30 text-xs">{showMixedFilter ? '▲' : '▼'}</span>
+            </button>
+
+            {/* Expandable type filter */}
+            {showMixedFilter && (
+              <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {availableSubcats.map((sub) => {
+                    const checked = selectedTypes.has(sub)
+                    return (
+                      <button
+                        key={sub}
+                        onClick={() => toggleType(sub)}
+                        className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                          checked
+                            ? 'bg-neon-blue/20 border-neon-blue/60 text-neon-blue'
+                            : 'bg-white/5 border-white/15 text-white/40 hover:border-white/30'
+                        }`}
+                      >
+                        {getDeckLabel(sub)}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setSelectedTypes(new Set(availableSubcats))}
+                      className="text-xs text-white/40 hover:text-white/70 transition-colors"
+                    >
+                      Select all
+                    </button>
+                    <button
+                      onClick={() => setSelectedTypes(new Set())}
+                      className="text-xs text-white/40 hover:text-white/70 transition-colors"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <button
+                    onClick={handleStartMixed}
+                    disabled={noneSelected}
+                    className="px-4 py-1.5 rounded-lg bg-neon-blue/20 border border-neon-blue/50 text-neon-blue text-xs font-semibold hover:bg-neon-blue/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Start →
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
     </div>
   )
 }

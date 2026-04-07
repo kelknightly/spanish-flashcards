@@ -49,6 +49,7 @@ interface Props {
   deckId: string
   bookNumber?: number
   chapterNumber?: number
+  types?: string // comma-separated subcategory filter for mixed deck
 }
 
 function highlightTerm(sentence: string, term: string): (string | React.ReactElement)[] {
@@ -103,7 +104,7 @@ function highlightTerm(sentence: string, term: string): (string | React.ReactEle
   return [sentence]
 }
 
-export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
+export function StudyView({ deckId, bookNumber, chapterNumber, types }: Props) {
   const { session } = useAuth()
   const router = useRouter()
   const { direction } = useCardDirection()
@@ -152,15 +153,17 @@ export function StudyView({ deckId, bookNumber, chapterNumber }: Props) {
   const { triggerBurst } = useContext(SparkleContext)
   const { play } = useSound()
 
-  // Progress persistence key (not used for 'mixed' deck)
-  const progressKey = deckId !== 'mixed' ? `deck-progress-${deckId}` : null
+  // Progress persistence key — scoped to deck + direction (not used for 'mixed' deck)
+  const progressKey = deckId !== 'mixed' ? `deck-progress-${deckId}-${sessionDirection.current}` : null
 
   // Load deck
   useEffect(() => {
     if (!session) return
     const isMixed = deckId === 'mixed'
+    const mixedParams = new URLSearchParams({ book: String(bookNumber), chapter: String(chapterNumber) })
+    if (types) mixedParams.set('types', types)
     const fetchUrl = isMixed
-      ? `/api/decks/mixed?book=${bookNumber}&chapter=${chapterNumber}`
+      ? `/api/decks/mixed?${mixedParams.toString()}`
       : `/api/decks/${deckId}`
     fetch(fetchUrl, {
       headers: { Authorization: `Bearer ${session.access_token}` },
