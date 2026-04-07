@@ -284,7 +284,7 @@ function AnnotatedText({
     const selection = window.getSelection()
     const selText = selection?.toString().trim() ?? ''
     if (selText.length > 0) {
-      selection?.removeAllRanges()
+      // Don't clear the selection — let the user copy it normally (Ctrl+C)
       onWordSelect(selText, null, null, text, { x: event.clientX, y: event.clientY })
       return
     }

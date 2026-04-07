@@ -224,6 +224,18 @@ export function ReviewView() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [cardState, nextCard])
 
+  // Right Shift → Reveal Sentence
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code !== 'ShiftRight') return
+      if (cardState === 'input' && currentCard?.direction !== 'en-to-es' && currentCard?.source_sentences?.length > 0 && !showSentence) {
+        setShowSentence(true)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [cardState, currentCard, showSentence])
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
