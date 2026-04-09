@@ -10,7 +10,10 @@
     "lint": "eslint .",
     "chapter:mark": "node scripts/patch-chapter-text.mjs",
     "chapter:seed": "npx tsx --env-file=.env scripts/seed-decks.ts",
-    "conjugations:generate": "npx tsx --env-file=.env scripts/generate-conjugation-table.ts"
+    "conjugations:generate": "npx tsx --env-file=.env scripts/generate-conjugation-table.ts",
+    "cards:audit": "npx tsx --env-file=.env scripts/audit-cards-text.ts",
+    "cards:fix": "npx tsx --env-file=.env scripts/audit-cards-text.ts --fix",
+    "cards:fill": "npx tsx --env-file=.env scripts/fill-decks.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

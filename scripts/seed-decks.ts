@@ -98,7 +98,12 @@ const TYPE_INSTRUCTIONS: Record<string, string> = {
   'verbs-present':
     'Extract exactly 10 verbs conjugated in the present tense (presente de indicativo) as they appear in the text.',
   'verbs-perfect':
-    'Extract exactly 10 verbs conjugated in the pretérito perfecto compuesto (present perfect) as they appear in the text. Each entry must be the full two-word form: the PRESENT-TENSE auxiliary haber (he/has/ha/hemos/habéis/han) followed immediately by the past participle (e.g. "he caminado", "ha llegado", "hemos visto"). Do NOT include pluperfect indicative forms (había/habías/habían/habíamos + participle) or pluperfect subjunctive forms (hubiera/hubieras/hubiera/hubiéramos + participle) — those belong in verbs-imperfect and verbs-subjunctive respectively. The past participle alone (e.g. "caminado", "querido") is never a valid card; always require the full two-word present-perfect form. The "spanish" field must contain the complete two-word combination exactly as it appears in the text.',
+    `Extract exactly 10 verbs in the PRESENT PERFECT tense (pretérito perfecto compuesto) ONLY.
+The auxiliary MUST be PRESENT TENSE haber: he, has, ha, hemos, han — followed by a past participle.
+VALID examples: "ha llegado", "han visto", "hemos comido", "he dicho", "has ido".
+INVALID: "había/habían/habría + participle" (pluperfect or conditional perfect, NOT present perfect), "hubiera/haya + participle" (subjunctive), bare past participles alone.
+Every "spanish" field MUST be a phrase containing he/has/ha/hemos/han as a word.
+If the text has few present-perfect forms, add thematically appropriate ones — but NEVER use había/habían as the auxiliary.`,
   'verbs-preterite':
     'Extract exactly 10 verbs conjugated in the preterite past tense (pretérito indefinido) as they appear in the text.',
   'verbs-imperfect':
@@ -106,7 +111,11 @@ const TYPE_INSTRUCTIONS: Record<string, string> = {
   'verbs-future':
     'Extract exactly 10 verbs conjugated in the future tense (futuro simple) as they appear in, or that are thematically relevant to, the text.',
   'verbs-conditional':
-    'Extract exactly 10 verbs conjugated in the conditional tense (condicional simple) as they appear in, or that are thematically relevant to, the text.',
+    `Extract exactly 10 verbs conjugated in the CONDITIONAL tense (condicional simple) ONLY.
+Valid forms end in: -ría, -rías, -ría, -ríamos, -rían. E.g. hablaría, comeríamos, sería, tendría, podría, diría, haría, vendría, sabría.
+INVALID — DO NOT USE: infinitives (hablar, comer), imperfect subjunctive (quisiera, hubiera, tuviera, fuera, dijera, entregara), future (hablará, volverás), preterite, present, or any non-conditional form.
+Every "spanish" field MUST contain a word ending in -ría, -rías, -ríamos, or -rían.
+As they appear in, or that are thematically relevant to, the text.`,
   'verbs-imperative':
     'Extract exactly 10 verbs conjugated in the imperative mood (imperativo) as they appear in, or that are thematically relevant to, the text.',
   'verbs-subjunctive':
@@ -141,6 +150,28 @@ TEXT:
 ${chapterText}`
 }
 
+// ── Post-generation validators (same logic as expand route) ───────────────
+
+function sentenceContainsTerm(sentence: string, term: string): boolean {
+  const bare = term.replace(/^(el|la|los|las|un|una)\s+/i, '').trim()
+  return sentence.toLowerCase().includes(bare.toLowerCase())
+}
+
+function hasObviousTenseMismatch(term: string, subcategory: string): boolean {
+  const t = term.trim()
+  if (subcategory === 'verbs-conditional') {
+    return !t.split(/\s+/).some(w => /ría$|rías$|ríamos$|rían$/i.test(w))
+  }
+  if (subcategory === 'verbs-perfect') {
+    const FINITE_HABER = new Set(['he', 'has', 'ha', 'hemos', 'han'])
+    return !t.split(/\s+/).map(w => w.toLowerCase()).some(tok => FINITE_HABER.has(tok))
+  }
+  if (subcategory === 'verbs-future') {
+    return !t.split(/\s+/).some(w => /ré$|rás$|rá$|remos$|rán$/i.test(w))
+  }
+  return false
+}
+
 // ── Core logic ─────────────────────────────────────────────────────────────
 
 interface CardJson {
@@ -156,7 +187,15 @@ async function extractCards(subcategory: string, text: string, excludeTerms: Set
   const jsonText = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
   const parsed = JSON.parse(jsonText)
   if (!Array.isArray(parsed)) throw new Error('Response is not a JSON array')
-  return parsed
+  // Post-generation validation: strip bad source sentences and filter wrong-tense cards
+  return (parsed as CardJson[])
+    .map((c) => ({
+      ...c,
+      sourceSentences: (c.sourceSentences ?? []).filter((s) =>
+        sentenceContainsTerm(s.es, c.spanish)
+      ),
+    }))
+    .filter((c) => !hasObviousTenseMismatch(c.spanish, subcategory))
 }
 
 async function ensureVocabTerms(cards: CardJson[]): Promise<Map<string, string>> {

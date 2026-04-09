@@ -49,6 +49,31 @@ const TENSE_PRIORITY: Record<string, number> = {
   'Negative imperative': 10,
 }
 
+// Spanish display names shown in table column headers
+const TENSE_DISPLAY_NAME: Record<string, string> = {
+  'Present': 'Presente',
+  'Preterite': 'Pretérito Perfecto',
+  'Imperfect': 'Pretérito Imperfecto',
+  'Conditional': 'Condicional',
+  'Future': 'Futuro',
+  'Present subjunctive': 'Subjuntivo Presente',
+  'Imperfect subjunctive -ra': 'Subjuntivo Imp. (-ra)',
+  'Imperfect subjunctive -se': 'Subjuntivo Imp. (-se)',
+  'Imperative': 'Imperativo',
+  'Negative imperative': 'Imperativo Negativo',
+}
+
+// Grouped tense pills shown in the "Add tense" footer
+const TENSE_GROUPS: { label: string; tenses: string[] }[] = [
+  { label: 'Presente', tenses: ['Present'] },
+  { label: 'Pretérito Perfecto', tenses: ['Preterite'] },
+  { label: 'Pretérito Imperfecto', tenses: ['Imperfect'] },
+  { label: 'Condicional', tenses: ['Conditional'] },
+  { label: 'Futuro', tenses: ['Future'] },
+  { label: 'Subjunctive', tenses: ['Present subjunctive', 'Imperfect subjunctive -ra', 'Imperfect subjunctive -se'] },
+  { label: 'Imperative', tenses: ['Imperative', 'Negative imperative'] },
+]
+
 function getTenseName(translation: string): string {
   const colon = translation.indexOf(':')
   // Non-conjugated forms (Gerund, Past participle, Infinitive) have no colon
@@ -168,7 +193,11 @@ export function ConjugationPanel({ surfaceForm, subcategory, onClose }: Props) {
   }, [forms])
 
   const allTenses = useMemo(() => deriveTenses(forms), [forms])
-  const addableTenses = allTenses.filter((t) => !activeTenses.includes(t))
+
+  // Groups that have at least one addable tense (i.e. not all tenses are already active)
+  const addableGroups = TENSE_GROUPS.filter((g) =>
+    g.tenses.some((t) => allTenses.includes(t) && !activeTenses.includes(t))
+  )
 
   const maxRows =
     activeTenses.length > 0
@@ -228,7 +257,7 @@ export function ConjugationPanel({ surfaceForm, subcategory, onClose }: Props) {
                       key={tense}
                       className="px-5 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-white/40 whitespace-nowrap"
                     >
-                      {tense}
+                      {TENSE_DISPLAY_NAME[tense] ?? tense}
                     </th>
                   ))}
                 </tr>
@@ -272,16 +301,21 @@ export function ConjugationPanel({ surfaceForm, subcategory, onClose }: Props) {
         )}
 
         {/* Add tense pills */}
-        {!loading && addableTenses.length > 0 && (
+        {!loading && addableGroups.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 px-5 py-3 border-t border-white/10 shrink-0">
             <span className="text-xs text-white/30 shrink-0">Add tense:</span>
-            {addableTenses.map((tense) => (
+            {addableGroups.map((group) => (
               <button
-                key={tense}
-                onClick={() => setActiveTenses((prev) => [...prev, tense])}
+                key={group.label}
+                onClick={() =>
+                  setActiveTenses((prev) => [
+                    ...prev,
+                    ...group.tenses.filter((t) => allTenses.includes(t) && !prev.includes(t)),
+                  ])
+                }
                 className="text-xs rounded-full px-3 py-1 border border-white/20 text-white/50 hover:text-white hover:border-white/40 transition-colors"
               >
-                + {tense}
+                + {group.label}
               </button>
             ))}
           </div>
