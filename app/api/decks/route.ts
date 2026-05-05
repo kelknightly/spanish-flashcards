@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthUserFromRequest, isAllowedEmail } from '@/lib/auth-api'
-import { createClient } from '@supabase/supabase-js'
-
-const url = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim()
-const anonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '').trim()
+import { getAuthUser, isAllowedEmail } from '@/lib/auth-api'
+import { sql } from '@/lib/db'
 
 interface CardInput {
   spanish: string
@@ -24,14 +21,10 @@ interface DeckInput {
 }
 
 export async function POST(request: NextRequest) {
-  const user = await getAuthUserFromRequest(request)
+  const user = await getAuthUser()
   if (!user || !isAllowedEmail(user.email)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-
-  const authHeader = request.headers.get('authorization')
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   let body: DeckInput
   try {
@@ -46,158 +39,119 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'deckName and cards are required' }, { status: 400 })
   }
 
-  const sb = createClient(url, anonKey, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  })
-
   // 1. Create the deck
-  const { data: deck, error: deckError } = await sb
-    .from('decks')
-    .insert({
-      user_id: user.id,
-      name: deckName.trim(),
-      book_number: bookNumber ?? null,
-      chapter_number: chapterNumber ?? null,
-      category: category ?? null,
-      subcategory: subcategory ?? null,
-      version: version ?? 1,
-      is_custom: isCustom ?? false,
-    })
-    .select('id')
-    .single()
-
-  if (deckError) {
-    return NextResponse.json({ error: deckError.message }, { status: 500 })
-  }
-
-  const deckId = deck.id
+  const deck = (await sql`
+    INSERT INTO decks (user_id, name, book_number, chapter_number, category, subcategory, version, is_custom)
+    VALUES (
+      ${user.id}, ${deckName.trim()},
+      ${bookNumber ?? null}, ${chapterNumber ?? null},
+      ${category ?? null}, ${subcategory ?? null},
+      ${version ?? 1}, ${isCustom ?? false}
+    )
+    RETURNING id
+  ` as Record<string, unknown>[])[0]
+  const deckId = (deck as { id: string }).id
 
   // 2. Upsert vocabulary_terms (shared across decks by user)
-  const terms = cards.map((c) => ({
-    user_id: user.id,
-    spanish_term: c.spanish.trim().toLowerCase(),
-  }))
-
-  const { error: termUpsertError } = await sb
-    .from('vocabulary_terms')
-    .upsert(terms, { onConflict: 'user_id,spanish_term', ignoreDuplicates: true })
-
-  if (termUpsertError) {
-    return NextResponse.json({ error: termUpsertError.message }, { status: 500 })
+  for (const c of cards) {
+    await sql`
+      INSERT INTO vocabulary_terms (user_id, spanish_term)
+      VALUES (${user.id}, ${c.spanish.trim().toLowerCase()})
+      ON CONFLICT (user_id, spanish_term) DO NOTHING
+    `
   }
 
-  // 3. Fetch the term IDs we just upserted
-  const spanishTerms = terms.map((t) => t.spanish_term)
-  const { data: termRows, error: termFetchError } = await sb
-    .from('vocabulary_terms')
-    .select('id, spanish_term')
-    .eq('user_id', user.id)
-    .in('spanish_term', spanishTerms)
-
-  if (termFetchError || !termRows) {
-    return NextResponse.json({ error: termFetchError?.message ?? 'Term fetch failed' }, { status: 500 })
-  }
-
-  const termIdMap = new Map(termRows.map((r) => [r.spanish_term, r.id]))
+  // 3. Fetch the term IDs
+  const spanishTerms = cards.map((c) => c.spanish.trim().toLowerCase())
+  const termRows = (await sql`
+    SELECT id, spanish_term FROM vocabulary_terms
+    WHERE user_id = ${user.id} AND spanish_term = ANY(${spanishTerms})
+  `) as Record<string, unknown>[]
+  const termIdMap = new Map((termRows as { id: string; spanish_term: string }[]).map((r) => [r.spanish_term, r.id]))
 
   // 4. Insert cards
-  const cardRows = cards
-    .map((c, i) => {
-      const termId = termIdMap.get(c.spanish.trim().toLowerCase())
-      if (!termId) return null
-      return {
-        deck_id: deckId,
-        vocab_term_id: termId,
-        spanish_term: c.spanish.trim(),
-        english_answer: c.english.trim(),
-        source_sentences: c.sourceSentences ?? [],
-        position: i,
-      }
-    })
-    .filter(Boolean)
-
-  const { error: cardsError } = await sb.from('cards').insert(cardRows)
-
-  if (cardsError) {
-    return NextResponse.json({ error: cardsError.message }, { status: 500 })
+  let insertedCount = 0
+  for (let i = 0; i < cards.length; i++) {
+    const c = cards[i]
+    const termId = termIdMap.get(c.spanish.trim().toLowerCase())
+    if (!termId) continue
+    await sql`
+      INSERT INTO cards (deck_id, vocab_term_id, spanish_term, english_answer, source_sentences, position)
+      VALUES (
+        ${deckId}, ${termId},
+        ${c.spanish.trim()}, ${c.english.trim()},
+        ${JSON.stringify(c.sourceSentences ?? [])}, ${i}
+      )
+    `
+    insertedCount++
   }
 
   // 5. Link chat session to deck if provided
   if (chatSessionId) {
-    await sb
-      .from('chat_sessions')
-      .update({ deck_id: deckId })
-      .eq('id', chatSessionId)
-      .eq('user_id', user.id)
+    await sql`
+      UPDATE chat_sessions SET deck_id = ${deckId}
+      WHERE id = ${chatSessionId} AND user_id = ${user.id}
+    `
   }
 
-  return NextResponse.json({ deckId, cardCount: cardRows.length })
+  return NextResponse.json({ deckId, cardCount: insertedCount })
 }
 
-// List decks for the authenticated user, with optional book/chapter filters
-// and mastery stats from the get_deck_mastery_stats RPC.
 export async function GET(request: NextRequest) {
-  const user = await getAuthUserFromRequest(request)
+  const user = await getAuthUser()
   if (!user || !isAllowedEmail(user.email)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const authHeader = request.headers.get('authorization')
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const sb = createClient(url, anonKey, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  })
-
   const { searchParams } = new URL(request.url)
-  const bookFilter = searchParams.get('book')
-  const chapterFilter = searchParams.get('chapter')
+  const bookFilter = searchParams.get('book') ? parseInt(searchParams.get('book')!) : null
+  const chapterFilter = searchParams.get('chapter') ? parseInt(searchParams.get('chapter')!) : null
 
-  let query = sb
-    .from('decks')
-    .select(
-      `id, name, book_number, chapter_number, category, subcategory,
-       version, is_system_generated, is_custom, parent_deck_id,
-       created_at, last_studied_at, cards(count)`
-    )
-    .eq('user_id', user.id)
-    .order('book_number',    { ascending: true,  nullsFirst: false })
-    .order('chapter_number', { ascending: true,  nullsFirst: false })
-    .order('subcategory',    { ascending: true,  nullsFirst: false })
-    .order('version',        { ascending: true })
+  const rows = (await sql`
+    SELECT
+      id, name, book_number, chapter_number, category, subcategory,
+      version, is_system_generated, is_custom, parent_deck_id,
+      created_at, last_studied_at
+    FROM decks
+    WHERE user_id = ${user.id}
+      AND (${bookFilter} IS NULL OR book_number = ${bookFilter})
+      AND (${chapterFilter} IS NULL OR chapter_number = ${chapterFilter})
+    ORDER BY
+      book_number    ASC NULLS LAST,
+      chapter_number ASC NULLS LAST,
+      subcategory    ASC NULLS LAST,
+      version        ASC
+  `) as Record<string, unknown>[]
 
-  if (bookFilter)    query = query.eq('book_number',    parseInt(bookFilter))
-  if (chapterFilter) query = query.eq('chapter_number', parseInt(chapterFilter))
+  const deckIds = (rows as { id: string }[]).map((d) => d.id)
 
-  const { data, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  const rows = data ?? []
-
-  // Fetch mastery stats for all returned decks in one RPC call
-  const deckIds = rows.map((d) => d.id)
+  // Mastery stats (inline replacement for the get_deck_mastery_stats RPC)
   const masteryMap: Record<string, { total: number; mastered: number; reviewed: number }> = {}
 
   if (deckIds.length > 0) {
-    const { data: masteryData } = await sb.rpc('get_deck_mastery_stats', {
-      deck_ids: deckIds,
-      p_user_id: user.id,
-    })
-    if (masteryData) {
-      for (const row of masteryData as { deck_id: string; total_cards: number; mastered_cards: number; reviewed_cards: number }[]) {
-        masteryMap[row.deck_id] = {
-          total: Number(row.total_cards),
-          mastered: Number(row.mastered_cards),
-          reviewed: Number(row.reviewed_cards ?? 0),
-        }
+    const masteryRows = (await sql`
+      SELECT
+        c.deck_id,
+        COUNT(DISTINCT c.id)                                                  AS total_cards,
+        COUNT(DISTINCT CASE WHEN cp.mastered_at IS NOT NULL THEN c.id END)    AS mastered_cards,
+        COUNT(DISTINCT CASE WHEN cp.id          IS NOT NULL THEN c.id END)    AS reviewed_cards
+      FROM cards c
+      LEFT JOIN card_progress cp
+        ON cp.vocab_term_id = c.vocab_term_id AND cp.user_id = ${user.id}
+      WHERE c.deck_id = ANY(${deckIds})
+      GROUP BY c.deck_id
+    `) as Record<string, unknown>[]
+    for (const r of masteryRows as { deck_id: string; total_cards: string; mastered_cards: string; reviewed_cards: string }[]) {
+      masteryMap[r.deck_id] = {
+        total: Number(r.total_cards),
+        mastered: Number(r.mastered_cards),
+        reviewed: Number(r.reviewed_cards),
       }
     }
   }
 
-  const decks = rows.map((d) => {
-    const m = masteryMap[d.id] ?? { total: 0, mastered: 0, reviewed: 0 }
-    const legacyCount = Array.isArray(d.cards) && d.cards[0] ? (d.cards[0] as { count: number }).count : 0
+  const decks = (rows as Record<string, unknown>[]).map((d) => {
+    const m = masteryMap[d.id as string] ?? { total: 0, mastered: 0, reviewed: 0 }
     return {
       id: d.id,
       name: d.name,
@@ -211,7 +165,7 @@ export async function GET(request: NextRequest) {
       parent_deck_id: d.parent_deck_id ?? null,
       created_at: d.created_at,
       last_studied_at: d.last_studied_at,
-      card_count: m.total || legacyCount,
+      card_count: m.total,
       mastered_count: m.mastered,
       reviewed_count: m.reviewed,
     }

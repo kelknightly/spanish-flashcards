@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthUserFromRequest, isAllowedEmail } from '@/lib/auth-api'
-import { createClient } from '@supabase/supabase-js'
+import { getAuthUser, isAllowedEmail } from '@/lib/auth-api'
+import { sql } from '@/lib/db'
 import { getModel } from '@/lib/gemini'
 import { DECK_TYPES } from '@/data/books'
 import { getChapterText } from '@/data/books/text-loader'
-
-const url = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim()
-const anonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '').trim()
 
 interface CardJson {
   spanish: string
@@ -18,34 +15,24 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ deckId: string }> }
 ) {
-  const user = await getAuthUserFromRequest(request)
+  const user = await getAuthUser()
   if (!user || !isAllowedEmail(user.email)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const authHeader = request.headers.get('authorization')
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
   const { deckId } = await params
 
-  const sb = createClient(url, anonKey, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  })
-
   // ── 1. Load the deck ─────────────────────────────────────────────────────
-  const { data: deck, error: deckErr } = await sb
-    .from('decks')
-    .select('id, name, book_number, chapter_number, subcategory, user_id')
-    .eq('id', deckId)
-    .eq('user_id', user.id)
-    .single()
+  const deck = (await sql`
+    SELECT id, name, book_number, chapter_number, subcategory, user_id
+    FROM decks WHERE id = ${deckId} AND user_id = ${user.id}
+  ` as Record<string, unknown>[])[0]
 
-  if (deckErr || !deck) {
+  if (!deck) {
     return NextResponse.json({ error: 'Deck not found' }, { status: 404 })
   }
 
-  const { book_number, chapter_number, subcategory } = deck
+  const { book_number, chapter_number, subcategory } = deck as Record<string, unknown>
   if (!book_number || !chapter_number || !subcategory) {
     return NextResponse.json(
       { error: 'This deck does not belong to a book chapter and cannot be augmented.' },
@@ -53,38 +40,25 @@ export async function POST(
     )
   }
 
-  // ── 2. Collect all already-used Spanish terms in this deck ───────────────
-  const { data: existingCards } = await sb
-    .from('cards')
-    .select('spanish_term')
-    .eq('deck_id', deckId)
-
-  const usedTerms = [...new Set((existingCards ?? []).map((c) => c.spanish_term.toLowerCase()))]
-
-  // Get the highest position so new cards go after existing ones
-  const { data: positionRows } = await sb
-    .from('cards')
-    .select('position')
-    .eq('deck_id', deckId)
-    .order('position', { ascending: false })
-    .limit(1)
-
-  const nextPosition = positionRows?.[0]?.position != null ? positionRows[0].position + 1 : 0
+  // ── 2. Collect already-used terms and current max position ───────────────
+  const existingCards = (await sql`SELECT spanish_term, position FROM cards WHERE deck_id = ${deckId}`) as { spanish_term: string; position: number }[]
+  const usedTerms = [...new Set(existingCards.map((c) => c.spanish_term.toLowerCase()))]
+  const maxPos = existingCards.length > 0
+    ? Math.max(...existingCards.map((c) => c.position))
+    : -1
+  const nextPosition = maxPos + 1
 
   // ── 3. Load chapter text ─────────────────────────────────────────────────
-  const chapterText = getChapterText(book_number, chapter_number)
+  const chapterText = getChapterText(book_number as number, chapter_number as number)
   if (!chapterText.trim()) {
-    return NextResponse.json(
-      { error: 'Chapter text is not yet loaded for this deck.' },
-      { status: 400 }
-    )
+    return NextResponse.json({ error: 'Chapter text is not yet loaded for this deck.' }, { status: 400 })
   }
 
   // ── 4. Build Gemini prompt ───────────────────────────────────────────────
   const deckTypeInfo = DECK_TYPES.find((t) => t.subcategory === subcategory)
   const prompt = buildExtractionPrompt(
-    subcategory,
-    deckTypeInfo?.label ?? subcategory,
+    subcategory as string,
+    deckTypeInfo?.label ?? (subcategory as string),
     chapterText,
     usedTerms,
   )
@@ -113,46 +87,39 @@ export async function POST(
   }
 
   // ── 6. Upsert vocabulary terms ───────────────────────────────────────────
-  const terms = newCards.map((c) => ({
-    user_id: user.id,
-    spanish_term: c.spanish.trim().toLowerCase(),
-  }))
-
-  await sb
-    .from('vocabulary_terms')
-    .upsert(terms, { onConflict: 'user_id,spanish_term', ignoreDuplicates: true })
-
-  const spanishTerms = terms.map((t) => t.spanish_term)
-  const { data: termRows } = await sb
-    .from('vocabulary_terms')
-    .select('id, spanish_term')
-    .eq('user_id', user.id)
-    .in('spanish_term', spanishTerms)
-
-  const termIdMap = new Map((termRows ?? []).map((r) => [r.spanish_term, r.id]))
-
-  // ── 7. Insert cards directly into this deck ──────────────────────────────
-  const cardRows = newCards
-    .map((c, i) => {
-      const termId = termIdMap.get(c.spanish.trim().toLowerCase())
-      if (!termId) return null
-      return {
-        deck_id: deckId,
-        vocab_term_id: termId,
-        spanish_term: c.spanish.trim(),
-        english_answer: c.english.trim(),
-        source_sentences: c.sourceSentences ?? [],
-        position: nextPosition + i,
-      }
-    })
-    .filter(Boolean)
-
-  const { error: cardsInsertErr } = await sb.from('cards').insert(cardRows)
-  if (cardsInsertErr) {
-    return NextResponse.json({ error: cardsInsertErr.message }, { status: 500 })
+  for (const c of newCards) {
+    await sql`
+      INSERT INTO vocabulary_terms (user_id, spanish_term)
+      VALUES (${user.id}, ${c.spanish.trim().toLowerCase()})
+      ON CONFLICT (user_id, spanish_term) DO NOTHING
+    `
   }
 
-  return NextResponse.json({ addedCount: cardRows.length })
+  const spanishTerms = newCards.map((c) => c.spanish.trim().toLowerCase())
+  const termRows = (await sql`
+    SELECT id, spanish_term FROM vocabulary_terms
+    WHERE user_id = ${user.id} AND spanish_term = ANY(${spanishTerms})
+  `) as Record<string, unknown>[]
+  const termIdMap = new Map((termRows as { id: string; spanish_term: string }[]).map((r) => [r.spanish_term, r.id]))
+
+  // ── 7. Insert cards ──────────────────────────────────────────────────────
+  let addedCount = 0
+  for (let i = 0; i < newCards.length; i++) {
+    const c = newCards[i]
+    const termId = termIdMap.get(c.spanish.trim().toLowerCase())
+    if (!termId) continue
+    await sql`
+      INSERT INTO cards (deck_id, vocab_term_id, spanish_term, english_answer, source_sentences, position)
+      VALUES (
+        ${deckId}, ${termId},
+        ${c.spanish.trim()}, ${c.english.trim()},
+        ${JSON.stringify(c.sourceSentences ?? [])}, ${nextPosition + i}
+      )
+    `
+    addedCount++
+  }
+
+  return NextResponse.json({ addedCount })
 }
 
 function buildExtractionPrompt(

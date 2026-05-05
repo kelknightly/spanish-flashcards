@@ -1,0 +1,26 @@
+                               Table "public.card_progress"
+       Column       |           Type           | Collation | Nullable |      Default      
+--------------------+--------------------------+-----------+----------+-------------------
+ id                 | uuid                     |           | not null | gen_random_uuid()
+ vocab_term_id      | uuid                     |           | not null | 
+ user_id            | uuid                     |           | not null | 
+ ease_factor        | real                     |           | not null | 2.5
+ interval_days      | integer                  |           | not null | 0
+ repetitions        | integer                  |           | not null | 0
+ next_review_at     | date                     |           |          | 
+ last_quality_score | integer                  |           |          | 
+ last_reviewed_at   | timestamp with time zone |           |          | 
+ introduced_at      | timestamp with time zone |           |          | 
+ total_reviews      | integer                  |           | not null | 0
+ total_correct      | integer                  |           | not null | 0
+ mastered_at        | timestamp with time zone |           |          | 
+Indexes:
+    "card_progress_pkey" PRIMARY KEY, btree (id)
+    "card_progress_introduced_idx" btree (user_id, introduced_at)
+    "card_progress_mastered_idx" btree (user_id, mastered_at)
+    "card_progress_user_review_idx" btree (user_id, next_review_at)
+    "card_progress_vocab_term_id_user_id_key" UNIQUE CONSTRAINT, btree (vocab_term_id, user_id)
+Foreign-key constraints:
+    "card_progress_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    "card_progress_vocab_term_id_fkey" FOREIGN KEY (vocab_term_id) REFERENCES vocabulary_terms(id) ON DELETE CASCADE
+

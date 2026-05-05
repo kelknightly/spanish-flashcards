@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthUserFromRequest, isAllowedEmail } from '@/lib/auth-api'
+import { getAuthUser, isAllowedEmail } from '@/lib/auth-api'
 import { getModel } from '@/lib/gemini'
-import { createClient } from '@supabase/supabase-js'
+import { sql } from '@/lib/db'
 import type { Part } from '@google/generative-ai'
-
-const url = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim()
-const anonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '').trim()
 
 const SYSTEM_PROMPT = `You are a Spanish language tutor specializing in vocabulary from C.S. Lewis's Chronicles of Narnia. 
 The user will share screenshots of Narnia chapters (in Spanish or English) and you will help them:
@@ -37,7 +34,7 @@ IMPORTANT — composite clitic forms: When a verb appears in the text with one o
 Keep explanations friendly, concise, and encouraging. Use examples from the Narnia text when visible.`
 
 export async function POST(request: NextRequest) {
-  const user = await getAuthUserFromRequest(request)
+  const user = await getAuthUser()
   if (!user || !isAllowedEmail(user.email)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
@@ -107,24 +104,16 @@ export async function POST(request: NextRequest) {
           }
 
           // Persist to chat_sessions after full response
-          if (url && anonKey && sessionId) {
-            const authHeader = request.headers.get('authorization')
-            const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
-            if (token) {
-              const sb = createClient(url, anonKey, {
-                global: { headers: { Authorization: `Bearer ${token}` } },
-              })
-              const newMessages = [
-                ...history,
-                { role: 'user', content: message?.trim() || `[${images.length} screenshot${images.length > 1 ? 's' : ''}]`, timestamp: new Date().toISOString() },
-                { role: 'assistant', content: fullText, timestamp: new Date().toISOString() },
-              ]
-              await sb
-                .from('chat_sessions')
-                .update({ messages: newMessages })
-                .eq('id', sessionId)
-                .eq('user_id', user.id)
-            }
+          if (sessionId) {
+            const newMessages = [
+              ...history,
+              { role: 'user', content: message?.trim() || `[${images.length} screenshot${images.length > 1 ? 's' : ''}]`, timestamp: new Date().toISOString() },
+              { role: 'assistant', content: fullText, timestamp: new Date().toISOString() },
+            ]
+            await sql`
+              UPDATE chat_sessions SET messages = ${JSON.stringify(newMessages)}
+              WHERE id = ${sessionId} AND user_id = ${user.id}
+            `
           }
 
           controller.enqueue(encoder.encode('data: [DONE]\n\n'))
@@ -151,26 +140,17 @@ export async function POST(request: NextRequest) {
 }
 
 // Create a new chat session
-export async function PUT(request: NextRequest) {
-  const user = await getAuthUserFromRequest(request)
+export async function PUT() {
+  const user = await getAuthUser()
   if (!user || !isAllowedEmail(user.email)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const authHeader = request.headers.get('authorization')
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const rows = (await sql`
+    INSERT INTO chat_sessions (user_id, title, messages)
+    VALUES (${user.id}, 'New conversation', '[]')
+    RETURNING id
+  `) as Record<string, unknown>[]
 
-  const sb = createClient(url, anonKey, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  })
-
-  const { data, error } = await sb
-    .from('chat_sessions')
-    .insert({ user_id: user.id, title: 'New conversation', messages: [] })
-    .select('id')
-    .single()
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ sessionId: data.id })
+  return NextResponse.json({ sessionId: (rows as { id: string }[])[0].id })
 }

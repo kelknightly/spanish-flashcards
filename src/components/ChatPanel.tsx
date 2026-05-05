@@ -84,7 +84,7 @@ function MessageBubble({ msg }: { msg: Message }) {
 }
 
 export function ChatPanel() {
-  const { session } = useAuth()
+  const { user } = useAuth()
   const router = useRouter()
 
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -102,15 +102,15 @@ export function ChatPanel() {
 
   // Create a session on first load
   useEffect(() => {
-    if (!session?.access_token) return
+    if (!user) return
     fetch('/api/chat', {
       method: 'PUT',
-      headers: { Authorization: `Bearer ${session.access_token}` },
+      
     })
       .then((r) => r.json())
       .then((d) => setSessionId(d.sessionId))
       .catch(console.error)
-  }, [session?.access_token])
+  }, [])
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -139,7 +139,7 @@ export function ChatPanel() {
   }, [])
 
   const sendMessage = useCallback(async () => {
-    if ((!input.trim() && !pendingImages.length) || streaming || !session?.access_token) return
+    if ((!input.trim() && !pendingImages.length) || streaming) return
 
     const userMsg: Message = {
       role: 'user',
@@ -161,7 +161,7 @@ export function ChatPanel() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
+
         },
         body: JSON.stringify({
           message: userMsg.content,
@@ -225,7 +225,7 @@ export function ChatPanel() {
     } finally {
       setStreaming(false)
     }
-  }, [input, pendingImages, streaming, session?.access_token, sessionId, messages])
+  }, [input, pendingImages, streaming, sessionId, messages])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -235,14 +235,14 @@ export function ChatPanel() {
   }
 
   const saveDeck = async () => {
-    if (!extractedDeck || !session?.access_token) return
+    if (!extractedDeck) return
     setSaving(true)
     try {
       const res = await fetch('/api/decks', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
+
         },
         body: JSON.stringify({
           deckName: extractedDeck.deckName,

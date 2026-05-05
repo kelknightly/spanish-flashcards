@@ -38,7 +38,7 @@ export function WordAddPopover({
   anchor,
   onClose,
 }: WordAddPopoverProps) {
-  const { session } = useAuth()
+  const { user } = useAuth()
   const [tab, setTab] = useState<'new' | 'existing'>('new')
   const [success, setSuccess] = useState<string | null>(null)
 
@@ -61,18 +61,16 @@ export function WordAddPopover({
 
   // Load decks when the Existing tab is first opened
   useEffect(() => {
-    if (tab !== 'existing' || !session || decks.length > 0) return
+    if (tab !== 'existing' || !user || decks.length > 0) return
     setDecksLoading(true)
-    fetch('/api/decks', {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    })
+    fetch('/api/decks')
       .then((r) => r.json())
       .then((data) => {
         setDecks(data.decks ?? [])
         setDecksLoading(false)
       })
       .catch(() => setDecksLoading(false))
-  }, [tab, session, decks.length])
+  }, [tab, user, decks.length])
 
   // Auto-close after success
   useEffect(() => {
@@ -90,7 +88,6 @@ export function WordAddPopover({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${session?.access_token}`,
         },
         body: JSON.stringify({
           deckName: deckName.trim(),
@@ -116,7 +113,7 @@ export function WordAddPopover({
     } finally {
       setSubmitting(false)
     }
-  }, [deckName, english, deckSubcategory, associateBook, associateChapter, bookNumber, chapterNumber, selectedText, paragraph, session, submitting])
+  }, [deckName, english, deckSubcategory, associateBook, associateChapter, bookNumber, chapterNumber, selectedText, paragraph, submitting])
 
   const handleExistingDeck = useCallback(async () => {
     if (!selectedDeckId || !existingEnglish.trim() || submitting) return
@@ -127,7 +124,6 @@ export function WordAddPopover({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${session?.access_token}`,
         },
         body: JSON.stringify({
           spanish: selectedText,
@@ -147,7 +143,7 @@ export function WordAddPopover({
     } finally {
       setSubmitting(false)
     }
-  }, [selectedDeckId, existingEnglish, selectedText, paragraph, session, decks, submitting])
+  }, [selectedDeckId, existingEnglish, selectedText, paragraph, decks, submitting])
 
   const filteredDecks = decks.filter((d) =>
     d.name.toLowerCase().includes(search.toLowerCase())

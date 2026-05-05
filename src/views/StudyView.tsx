@@ -107,7 +107,7 @@ function highlightTerm(sentence: string, term: string): (string | React.ReactEle
 }
 
 export function StudyView({ deckId, bookNumber, chapterNumber, types }: Props) {
-  const { session } = useAuth()
+  const { user } = useAuth()
   const router = useRouter()
   const { direction } = useCardDirection()
   // Snapshot direction at session start — mid-session toggles don't disrupt the deck
@@ -162,7 +162,7 @@ export function StudyView({ deckId, bookNumber, chapterNumber, types }: Props) {
 
   // Load deck
   useEffect(() => {
-    if (!session) return
+    if (!user) return
     const isMixed = deckId === 'mixed'
     const mixedParams = new URLSearchParams({ book: String(bookNumber), chapter: String(chapterNumber) })
     if (types) mixedParams.set('types', types)
@@ -170,7 +170,7 @@ export function StudyView({ deckId, bookNumber, chapterNumber, types }: Props) {
       ? `/api/decks/mixed?${mixedParams.toString()}`
       : `/api/decks/${deckId}`
     fetch(fetchUrl, {
-      headers: { Authorization: `Bearer ${session.access_token}` },
+      
     })
       .then((r) => r.json())
       .then((data) => {
@@ -233,18 +233,18 @@ export function StudyView({ deckId, bookNumber, chapterNumber, types }: Props) {
         setErrorMsg('Failed to load deck.')
         setViewState('error')
       })
-  }, [deckId, session, bookNumber, chapterNumber]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [deckId, user, bookNumber, chapterNumber]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // When the session completes, look up the next CEFR level deck (if applicable)
   useEffect(() => {
-    if (viewState !== 'complete' || !session || !deck) return
+    if (viewState !== 'complete' || !user || !deck) return
     const nextSub = deck.subcategory ? CEFR_NOUN_NEXT[deck.subcategory] : null
     if (!nextSub) return
     const fetchUrl = deck.book_number && deck.chapter_number
       ? `/api/decks?book=${deck.book_number}&chapter=${deck.chapter_number}`
       : `/api/decks`
     fetch(fetchUrl, {
-      headers: { Authorization: `Bearer ${session.access_token}` },
+      
     })
       .then((r) => r.json())
       .then((data) => {
@@ -254,12 +254,12 @@ export function StudyView({ deckId, bookNumber, chapterNumber, types }: Props) {
         if (next) setNextLevelDeckId(next.id)
       })
       .catch(() => { /* silently ignore */ })
-  }, [viewState, deck, session])
+  }, [viewState, deck, user])
 
   const currentCard = cards[currentIdx]
 
   const submitAnswer = useCallback(async () => {
-    if (!currentCard || !session || !answer.trim() || cardState !== 'input') return
+    if (!currentCard || !user || !answer.trim() || cardState !== 'input') return
     setCardState('evaluating')
 
     try {
@@ -267,7 +267,7 @@ export function StudyView({ deckId, bookNumber, chapterNumber, types }: Props) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
+
         },
         body: JSON.stringify({
           vocabTermId: currentCard.vocab_term_id,
@@ -335,7 +335,7 @@ export function StudyView({ deckId, bookNumber, chapterNumber, types }: Props) {
     } catch {
       setCardState('input')
     }
-  }, [currentCard, session, answer, cardState, currentIdx, triggerBurst, play])
+  }, [currentCard, user, answer, cardState, currentIdx, triggerBurst, play])
 
   const nextCard = useCallback(() => {
     const advance = () => {
@@ -345,10 +345,10 @@ export function StudyView({ deckId, bookNumber, chapterNumber, types }: Props) {
         if (progressKey) localStorage.removeItem(progressKey)
         setViewState('complete')
         // Check personal best (fire-and-forget)
-        if (session?.access_token) {
+        if (user) {
           fetch('/api/personal-best', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ count: cards.length }),
           })
             .then((r) => r.json())
@@ -557,13 +557,13 @@ export function StudyView({ deckId, bookNumber, chapterNumber, types }: Props) {
             <div className="mt-5 pt-5 border-t border-white/10">
               <button
                 onClick={async () => {
-                  if (!session || augmenting) return
+                  if (!user || augmenting) return
                   setAugmenting(true)
                   setAugmentMsg(null)
                   try {
                     const res = await fetch(`/api/decks/${deckId}/augment`, {
                       method: 'POST',
-                      headers: { Authorization: `Bearer ${session.access_token}` },
+                      
                     })
                     const data = await res.json()
                     if (data.addedCount) {

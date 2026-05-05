@@ -26,7 +26,7 @@ export function LoginView() {
     const { error: err } = await signIn(email, password)
     setSubmitting(false)
     if (err) {
-      setError(err.message)
+      setError('Invalid email or password')
       return
     }
     router.replace(searchParams.get('from') || '/decks')

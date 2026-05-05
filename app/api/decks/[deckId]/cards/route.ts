@@ -1,22 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthUserFromRequest, isAllowedEmail } from '@/lib/auth-api'
-import { createClient } from '@supabase/supabase-js'
-
-const url = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim()
-const anonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '').trim()
+import { getAuthUser, isAllowedEmail } from '@/lib/auth-api'
+import { sql } from '@/lib/db'
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ deckId: string }> }
 ) {
-  const user = await getAuthUserFromRequest(request)
+  const user = await getAuthUser()
   if (!user || !isAllowedEmail(user.email)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-
-  const authHeader = request.headers.get('authorization')
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { deckId } = await params
 
@@ -32,75 +25,36 @@ export async function POST(
     return NextResponse.json({ error: 'spanish and english are required' }, { status: 400 })
   }
 
-  const sb = createClient(url, anonKey, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  })
+  const deck = (await sql`SELECT id FROM decks WHERE id = ${deckId} AND user_id = ${user.id}` as Record<string, unknown>[])[0]
+  if (!deck) return NextResponse.json({ error: 'Deck not found' }, { status: 404 })
 
-  // Verify the deck belongs to this user
-  const { data: deck, error: deckError } = await sb
-    .from('decks')
-    .select('id')
-    .eq('id', deckId)
-    .eq('user_id', user.id)
-    .single()
-
-  if (deckError || !deck) {
-    return NextResponse.json({ error: 'Deck not found' }, { status: 404 })
-  }
-
-  // Upsert vocabulary term (idempotent)
   const spanishLower = spanish.trim().toLowerCase()
-  const { error: termUpsertError } = await sb
-    .from('vocabulary_terms')
-    .upsert(
-      { user_id: user.id, spanish_term: spanishLower },
-      { onConflict: 'user_id,spanish_term', ignoreDuplicates: true }
+
+  await sql`
+    INSERT INTO vocabulary_terms (user_id, spanish_term)
+    VALUES (${user.id}, ${spanishLower})
+    ON CONFLICT (user_id, spanish_term) DO NOTHING
+  `
+
+  const termRow = (await sql`
+    SELECT id FROM vocabulary_terms WHERE user_id = ${user.id} AND spanish_term = ${spanishLower}
+  ` as Record<string, unknown>[])[0]
+  if (!termRow) return NextResponse.json({ error: 'Term lookup failed' }, { status: 500 })
+
+  const maxPosRow = (await sql`
+    SELECT MAX(position) AS max_pos FROM cards WHERE deck_id = ${deckId}
+  ` as Record<string, unknown>[])[0]
+  const nextPosition = maxPosRow?.max_pos != null ? Number(maxPosRow.max_pos) + 1 : 0
+
+  const card = (await sql`
+    INSERT INTO cards (deck_id, vocab_term_id, spanish_term, english_answer, source_sentences, position)
+    VALUES (
+      ${deckId}, ${(termRow as { id: string }).id},
+      ${spanish.trim()}, ${english.trim()},
+      ${JSON.stringify(sourceSentences ?? [])}, ${nextPosition}
     )
+    RETURNING id
+  ` as Record<string, unknown>[])[0]
 
-  if (termUpsertError) {
-    return NextResponse.json({ error: termUpsertError.message }, { status: 500 })
-  }
-
-  // Fetch the term ID
-  const { data: termRow, error: termFetchError } = await sb
-    .from('vocabulary_terms')
-    .select('id')
-    .eq('user_id', user.id)
-    .eq('spanish_term', spanishLower)
-    .single()
-
-  if (termFetchError || !termRow) {
-    return NextResponse.json({ error: 'Term lookup failed' }, { status: 500 })
-  }
-
-  // Get current max position in the deck so we can append
-  const { data: maxPosRow } = await sb
-    .from('cards')
-    .select('position')
-    .eq('deck_id', deckId)
-    .order('position', { ascending: false })
-    .limit(1)
-    .single()
-
-  const nextPosition = maxPosRow ? (maxPosRow.position as number) + 1 : 0
-
-  // Insert the card
-  const { data: card, error: cardError } = await sb
-    .from('cards')
-    .insert({
-      deck_id: deckId,
-      vocab_term_id: termRow.id,
-      spanish_term: spanish.trim(),
-      english_answer: english.trim(),
-      source_sentences: sourceSentences ?? [],
-      position: nextPosition,
-    })
-    .select('id')
-    .single()
-
-  if (cardError) {
-    return NextResponse.json({ error: cardError.message }, { status: 500 })
-  }
-
-  return NextResponse.json({ cardId: card.id })
+  return NextResponse.json({ cardId: (card as { id: string }).id })
 }

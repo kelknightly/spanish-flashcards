@@ -31,7 +31,7 @@ interface Props {
 }
 
 export function ChapterDecksPanel({ bookNumber, chapterNumber }: Props) {
-  const { session } = useAuth()
+  const { user } = useAuth()
   const router = useRouter()
   const [decks, setDecks] = useState<DeckInfo[]>([])
   const [loading, setLoading] = useState(true)
@@ -43,10 +43,11 @@ export function ChapterDecksPanel({ bookNumber, chapterNumber }: Props) {
   const hasText = !!chapter?.hasText
 
   useEffect(() => {
-    if (!session) return
+    if (!user) return
     setLoading(true)
     fetch(`/api/decks?book=${bookNumber}&chapter=${chapterNumber}`, {
-      headers: { Authorization: `Bearer ${session.access_token}` },
+      headers: {
+ },
     })
       .then((r) => r.json())
       .then((data) => {
@@ -63,7 +64,7 @@ export function ChapterDecksPanel({ bookNumber, chapterNumber }: Props) {
         setLoading(false)
       })
       .catch(() => setLoading(false))
-  }, [session, bookNumber, chapterNumber])
+  }, [user, bookNumber, chapterNumber])
 
   // For each subcategory, show only the latest version
   const latestBySubcategory = new Map<string, DeckInfo>()
@@ -76,12 +77,13 @@ export function ChapterDecksPanel({ bookNumber, chapterNumber }: Props) {
   }
 
   const handleAddMore = async (deck: DeckInfo) => {
-    if (!session) return
+    if (!user) return
     setExpanding(deck.id)
     try {
       const res = await fetch(`/api/decks/${deck.id}/expand`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: {
+ },
       })
       const data = await res.json()
       if (data.newDeckId) {

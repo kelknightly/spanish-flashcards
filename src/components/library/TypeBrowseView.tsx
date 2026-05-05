@@ -17,16 +17,17 @@ interface DeckInfo {
 }
 
 export function TypeBrowseView() {
-  const { session } = useAuth()
+  const { user } = useAuth()
   const router = useRouter()
   const [decks, setDecks] = useState<DeckInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [openType, setOpenType] = useState<string | null>(DECK_TYPES[0].subcategory)
 
   useEffect(() => {
-    if (!session) return
+    if (!user) return
     fetch('/api/decks', {
-      headers: { Authorization: `Bearer ${session.access_token}` },
+      headers: {
+ },
     })
       .then((r) => r.json())
       .then((data) => {
@@ -34,7 +35,7 @@ export function TypeBrowseView() {
         setLoading(false)
       })
       .catch(() => setLoading(false))
-  }, [session])
+  }, [user])
 
   if (loading) {
     return (

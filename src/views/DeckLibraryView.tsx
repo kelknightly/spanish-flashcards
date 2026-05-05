@@ -13,7 +13,7 @@ import { CustomDecksView } from '@/components/library/CustomDecksView'
 function LibraryContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { session } = useAuth()
+  const { user } = useAuth()
 
   const view = searchParams.get('view') ?? 'chapter'
   const selectedBook = searchParams.get('book') ? parseInt(searchParams.get('book')!) : null
@@ -42,14 +42,12 @@ function LibraryContent() {
   })
 
   useEffect(() => {
-    if (!session?.access_token) return
-    fetch('/api/nemesis-cards', {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    })
+    if (!user) return
+    fetch('/api/nemesis-cards')
       .then((r) => r.json())
       .then((data) => { if (data.cards?.length >= 3) setNemesisCards(data.cards) })
       .catch(() => {})
-  }, [session])
+  }, [user])
 
   const selectBook = (bookNumber: number) => {
     router.push(`/decks?view=chapter&book=${bookNumber}`)

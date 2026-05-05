@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthUserFromRequest, isAllowedEmail } from '@/lib/auth-api'
+import { getAuthUser, isAllowedEmail } from '@/lib/auth-api'
 import { getModel } from '@/lib/gemini'
 import { getConjugations } from '@/lib/conjugations'
 
@@ -7,7 +7,7 @@ import { getConjugations } from '@/lib/conjugations'
 const INFINITIVE_RE = /^[a-záéíóúüñA-ZÁÉÍÓÚÜÑ]{1,60}$/
 
 export async function POST(request: NextRequest) {
-  const user = await getAuthUserFromRequest(request)
+  const user = await getAuthUser()
   if (!user || !isAllowedEmail(user.email)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

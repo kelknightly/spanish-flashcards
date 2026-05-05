@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthUserFromRequest, isAllowedEmail } from '@/lib/auth-api'
-import { createClient } from '@supabase/supabase-js'
-const url = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim()
-const anonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '').trim()
+import { getAuthUser, isAllowedEmail } from '@/lib/auth-api'
+import { sql } from '@/lib/db'
 
 const MIXED_DECK_SIZE = 20
 
@@ -16,19 +14,15 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 export async function GET(request: NextRequest) {
-  const user = await getAuthUserFromRequest(request)
+  const user = await getAuthUser()
   if (!user || !isAllowedEmail(user.email)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const authHeader = request.headers.get('authorization')
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
   const { searchParams } = new URL(request.url)
   const bookParam = searchParams.get('book')
   const chapterParam = searchParams.get('chapter')
-  const typesParam = searchParams.get('types') // optional comma-separated subcategory filter
+  const typesParam = searchParams.get('types')
   const allowedTypes = typesParam ? new Set(typesParam.split(',').map((s) => s.trim()).filter(Boolean)) : null
 
   if (!bookParam || !chapterParam) {
@@ -42,35 +36,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'book and chapter must be integers' }, { status: 400 })
   }
 
-  const sb = createClient(url, anonKey, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  })
-
   // 1. Fetch all decks for this chapter
-  const { data: allDecks, error: deckError } = await sb
-    .from('decks')
-    .select('id, name, subcategory, version')
-    .eq('user_id', user.id)
-    .eq('book_number', bookNumber)
-    .eq('chapter_number', chapterNumber)
+  const allDecks = (await sql`
+    SELECT id, subcategory, version FROM decks
+    WHERE user_id = ${user.id} AND book_number = ${bookNumber} AND chapter_number = ${chapterNumber}
+  `) as { id: string; subcategory: string | null; version: number }[]
 
-  if (deckError) {
-    return NextResponse.json({ error: deckError.message }, { status: 500 })
-  }
-
-  if (!allDecks?.length) {
+  if (!allDecks.length) {
     return NextResponse.json({ error: 'No decks found for this chapter' }, { status: 404 })
   }
 
-  // 2. Keep only the latest version per subcategory (same logic as ChapterDecksPanel)
-  const latestBySubcategory = new Map<string, string>() // subcategory → deck id
+  // 2. Keep only the latest version per subcategory
+  const latestBySubcategory = new Map<string, string>()
   for (const deck of allDecks) {
     const key = deck.subcategory ?? deck.id
     const existing = latestBySubcategory.get(key)
     if (!existing) {
       latestBySubcategory.set(key, deck.id)
     } else {
-      const existingDeck = allDecks.find((d) => d.id === existing)
+      const existingDeck = (allDecks as { id: string; version: number }[]).find((d) => d.id === existing)
       if (existingDeck && deck.version > existingDeck.version) {
         latestBySubcategory.set(key, deck.id)
       }
@@ -81,44 +65,39 @@ export async function GET(request: NextRequest) {
     .filter(([sub]) => !allowedTypes || allowedTypes.has(sub))
     .map(([, id]) => id)
 
-  // 3. Fetch all cards from those decks
-  const { data: allCards, error: cardsError } = await sb
-    .from('cards')
-    .select('id, spanish_term, english_answer, source_sentences, position, vocab_term_id')
-    .in('deck_id', deckIds)
-
-  if (cardsError) {
-    return NextResponse.json({ error: cardsError.message }, { status: 500 })
+  if (!deckIds.length) {
+    return NextResponse.json({ error: 'No decks found for this chapter' }, { status: 404 })
   }
 
-  if (!allCards?.length) {
+  // 3. Fetch all cards from those decks
+  const allCards = (await sql`
+    SELECT id, spanish_term, english_answer, source_sentences, position, vocab_term_id
+    FROM cards WHERE deck_id = ANY(${deckIds})
+  `) as Record<string, unknown>[]
+
+  if (!allCards.length) {
     return NextResponse.json({ error: 'No cards found in this chapter' }, { status: 404 })
   }
 
-  const allVocabTermIds = allCards.map((c) => c.vocab_term_id)
+  const allVocabTermIds = (allCards as { vocab_term_id: string }[]).map((c) => c.vocab_term_id)
 
-  // 4. Fetch mastered vocab_term_ids for this user (within this card set)
-  const { data: masteredRows, error: masteredError } = await sb
-    .from('card_progress')
-    .select('vocab_term_id')
-    .eq('user_id', user.id)
-    .not('mastered_at', 'is', null)
-    .in('vocab_term_id', allVocabTermIds)
+  // 4. Fetch mastered vocab_term_ids for this user
+  const masteredRows = (await sql`
+    SELECT vocab_term_id FROM card_progress
+    WHERE user_id = ${user.id} AND mastered_at IS NOT NULL
+      AND vocab_term_id = ANY(${allVocabTermIds})
+  `) as Record<string, unknown>[]
+  const masteredSet = new Set((masteredRows as { vocab_term_id: string }[]).map((r) => r.vocab_term_id))
 
-  if (masteredError) {
-    return NextResponse.json({ error: masteredError.message }, { status: 500 })
-  }
-
-  const masteredSet = new Set((masteredRows ?? []).map((r) => r.vocab_term_id))
-
-  // 5. Filter out mastered cards and deduplicate by vocab_term_id
+  // 5. Filter mastered and deduplicate by vocab_term_id
   const seen = new Set<string>()
-  const eligible: typeof allCards = []
+  const eligible: Record<string, unknown>[] = []
 
-  for (const card of allCards) {
-    if (masteredSet.has(card.vocab_term_id)) continue
-    if (seen.has(card.vocab_term_id)) continue
-    seen.add(card.vocab_term_id)
+  for (const card of allCards as Record<string, unknown>[]) {
+    const termId = card.vocab_term_id as string
+    if (masteredSet.has(termId)) continue
+    if (seen.has(termId)) continue
+    seen.add(termId)
     eligible.push(card)
   }
 
@@ -130,26 +109,23 @@ export async function GET(request: NextRequest) {
   shuffle(eligible)
   const selected = eligible.slice(0, MIXED_DECK_SIZE)
 
-  // 7. Tag new cards (no card_progress row yet)
-  const selectedTermIds = selected.map((c) => c.vocab_term_id)
-
-  const { data: progressRows } = await sb
-    .from('card_progress')
-    .select('vocab_term_id')
-    .eq('user_id', user.id)
-    .in('vocab_term_id', selectedTermIds)
-
-  const seenTermIds = new Set((progressRows ?? []).map((r) => r.vocab_term_id))
+  // 7. Tag new cards
+  const selectedTermIds = selected.map((c) => c.vocab_term_id as string)
+  const progressRows = (await sql`
+    SELECT vocab_term_id FROM card_progress
+    WHERE user_id = ${user.id} AND vocab_term_id = ANY(${selectedTermIds})
+  `) as Record<string, unknown>[]
+  const seenTermIds = new Set((progressRows as { vocab_term_id: string }[]).map((r) => r.vocab_term_id))
 
   const taggedCards = selected.map((c) => ({
     ...c,
-    isNew: !seenTermIds.has(c.vocab_term_id),
+    isNew: !seenTermIds.has(c.vocab_term_id as string),
   }))
 
   return NextResponse.json({
     deck: {
       id: 'mixed',
-      name: `Mixed Deck`,
+      name: 'Mixed Deck',
       book_number: bookNumber,
       chapter_number: chapterNumber,
       category: null,

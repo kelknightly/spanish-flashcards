@@ -1,65 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthUserFromRequest, isAllowedEmail } from '@/lib/auth-api'
-import { createClient } from '@supabase/supabase-js'
-const url = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim()
-const anonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '').trim()
+import { getAuthUser, isAllowedEmail } from '@/lib/auth-api'
+import { sql } from '@/lib/db'
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ deckId: string }> }
 ) {
-  const user = await getAuthUserFromRequest(request)
+  const user = await getAuthUser()
   if (!user || !isAllowedEmail(user.email)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const authHeader = request.headers.get('authorization')
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
   const { deckId } = await params
 
-  const sb = createClient(url, anonKey, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  })
+  const deck = (await sql`
+    SELECT id, name, book_number, chapter_number, category, subcategory
+    FROM decks WHERE id = ${deckId} AND user_id = ${user.id}
+  ` as Record<string, unknown>[])[0]
 
-  const { data: deck, error: deckError } = await sb
-    .from('decks')
-    .select('id, name, book_number, chapter_number, category, subcategory')
-    .eq('id', deckId)
-    .eq('user_id', user.id)
-    .single()
-
-  if (deckError || !deck) {
+  if (!deck) {
     return NextResponse.json({ error: 'Deck not found' }, { status: 404 })
   }
 
-  const { data: cards, error: cardsError } = await sb
-    .from('cards')
-    .select('id, spanish_term, english_answer, source_sentences, position, vocab_term_id')
-    .eq('deck_id', deckId)
-    .order('position')
+  const cards = (await sql`
+    SELECT id, spanish_term, english_answer, source_sentences, position, vocab_term_id
+    FROM cards WHERE deck_id = ${deckId}
+    ORDER BY position
+  `) as Record<string, unknown>[]
 
-  if (cardsError) {
-    return NextResponse.json({ error: cardsError.message }, { status: 500 })
-  }
-
-  // Fetch existing progress rows for these cards' vocab terms so we can tag new cards
-  const vocabTermIds = (cards ?? []).map((c) => c.vocab_term_id)
-  const { data: progressRows } = vocabTermIds.length
-    ? await sb
-        .from('card_progress')
-        .select('vocab_term_id, interval_days, mastered_at')
-        .eq('user_id', user.id)
-        .in('vocab_term_id', vocabTermIds)
-    : { data: [] }
+  const vocabTermIds = (cards as { vocab_term_id: string }[]).map((c) => c.vocab_term_id)
+  const progressRows = vocabTermIds.length
+    ? await sql`
+        SELECT vocab_term_id, interval_days, mastered_at
+        FROM card_progress
+        WHERE user_id = ${user.id} AND vocab_term_id = ANY(${vocabTermIds})
+      `
+    : []
 
   const progressByTermId = new Map(
-    (progressRows ?? []).map((r) => [r.vocab_term_id, r])
+    (progressRows as { vocab_term_id: string; interval_days: number; mastered_at: string | null }[])
+      .map((r) => [r.vocab_term_id, r])
   )
 
-  const taggedCards = (cards ?? []).map((c) => {
-    const prog = progressByTermId.get(c.vocab_term_id)
+  const taggedCards = (cards as Record<string, unknown>[]).map((c) => {
+    const prog = progressByTermId.get(c.vocab_term_id as string)
     return {
       ...c,
       isNew: !prog,
@@ -68,8 +52,5 @@ export async function GET(
     }
   })
 
-  return NextResponse.json({
-    deck,
-    cards: taggedCards,
-  })
+  return NextResponse.json({ deck, cards: taggedCards })
 }

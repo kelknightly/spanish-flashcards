@@ -109,7 +109,7 @@ interface Props {
 }
 
 export function ConjugationPanel({ surfaceForm, subcategory, onClose }: Props) {
-  const { session } = useAuth()
+  const { user } = useAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [infinitive, setInfinitive] = useState<string | null>(null)
@@ -136,15 +136,13 @@ export function ConjugationPanel({ surfaceForm, subcategory, onClose }: Props) {
     setInfinitive(null)
     setForms([])
     setActiveTenses([preferredTense])
-
-    const token = session?.access_token ?? ''
     let cancelled = false
 
     ;(async () => {
       try {
         const r1 = await fetch('/api/infinitive', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ form: surfaceForm.toLowerCase() }),
         })
         const d1: { infinitive?: string; error?: string } = await r1.json()
@@ -152,7 +150,7 @@ export function ConjugationPanel({ surfaceForm, subcategory, onClose }: Props) {
 
         const r2 = await fetch('/api/conjugate', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ infinitive: d1.infinitive }),
         })
         const d2: { forms?: VerbFormEntry[]; infinitive?: string; error?: string } =
@@ -178,7 +176,7 @@ export function ConjugationPanel({ surfaceForm, subcategory, onClose }: Props) {
     return () => {
       cancelled = true
     }
-  }, [surfaceForm, subcategory, session]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [surfaceForm, subcategory, user]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const tenseMap = useMemo(() => {
     const map = new Map<string, VerbFormEntry[]>()

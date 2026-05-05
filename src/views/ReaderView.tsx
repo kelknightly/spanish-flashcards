@@ -492,7 +492,7 @@ function FilterBar({
 // ── Main view ──────────────────────────────────────────────────────────────
 
 function ReaderContent() {
-  const { session } = useAuth()
+  const { user } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -598,14 +598,12 @@ function ReaderContent() {
 
   // Load chapter text + annotations when book+chapter change
   useEffect(() => {
-    if (!session || !selectedBook || !selectedChapter) return
+    if (!user || !selectedBook || !selectedChapter) return
     setLoading(true)
     setChapterText('')
     setTerms([])
 
-    fetch(`/api/reader?book=${selectedBook}&chapter=${selectedChapter}`, {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    })
+    fetch(`/api/reader?book=${selectedBook}&chapter=${selectedChapter}`)
       .then((r) => r.json())
       .then((data) => {
         setChapterText(data.text ?? '')
@@ -613,7 +611,7 @@ function ReaderContent() {
         setLoading(false)
       })
       .catch(() => setLoading(false))
-  }, [session, selectedBook, selectedChapter])
+  }, [user, selectedBook, selectedChapter])
 
   // Count text search matches in the chapter
   const textSearchMatchCount = useMemo(() => {
@@ -670,7 +668,6 @@ function ReaderContent() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${session?.access_token ?? ''}`,
         },
         body: JSON.stringify({ infinitive }),
       })
@@ -683,7 +680,7 @@ function ReaderContent() {
     } finally {
       setIsConjugating(false)
     }
-  }, [verbSearchInput, isConjugating, session])
+  }, [verbSearchInput, isConjugating])
 
   const handleVerbSearchClear = useCallback(() => {
     setVerbForms([] as VerbForm[])

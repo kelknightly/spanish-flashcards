@@ -1,20 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthUserFromRequest, isAllowedEmail } from '@/lib/auth-api'
+import { getAuthUser, isAllowedEmail } from '@/lib/auth-api'
 import { getChapterText } from '@/data/books/text-loader'
-import { createClient } from '@supabase/supabase-js'
-
-const url = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim()
-const anonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '').trim()
+import { sql } from '@/lib/db'
 
 export async function GET(request: NextRequest) {
-  const user = await getAuthUserFromRequest(request)
+  const user = await getAuthUser()
   if (!user || !isAllowedEmail(user.email)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const authHeader = request.headers.get('authorization')
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  void authHeader // no longer needed
 
   const { searchParams } = new URL(request.url)
   const book = parseInt(searchParams.get('book') ?? '', 10)
@@ -24,24 +20,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'book and chapter params required' }, { status: 400 })
   }
 
-  // Load chapter text from filesystem (server-only)
   const text = getChapterText(book, chapter)
 
-  // Fetch all decks for this user/book/chapter, with their cards
-  const sb = createClient(url, anonKey, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  })
-
-  const { data: deckRows, error } = await sb
-    .from('decks')
-    .select('subcategory, cards(spanish_term, english_answer)')
-    .eq('user_id', user.id)
-    .eq('book_number', book)
-    .eq('chapter_number', chapter)
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
+  // Fetch all decks + their cards for this chapter
+  const deckRows = (await sql`
+    SELECT d.subcategory, c.spanish_term, c.english_answer
+    FROM decks d
+    JOIN cards c ON c.deck_id = d.id
+    WHERE d.user_id = ${user.id} AND d.book_number = ${book} AND d.chapter_number = ${chapter}
+  `) as Record<string, unknown>[]
 
   // Build a map of term → subcategory, preferring the most specific subcategory
   // Priority order (most specific first):
@@ -66,21 +53,18 @@ export async function GET(request: NextRequest) {
 
   const termMap = new Map<string, { subcategory: string; translation: string }>()
 
-  for (const deck of deckRows ?? []) {
-    const subcategory = (deck.subcategory as string | null) ?? 'general'
-    const cards = deck.cards as Array<{ spanish_term: string; english_answer: string | null }>
-    for (const card of cards ?? []) {
-      const term = card.spanish_term.toLowerCase()
-      const translation = card.english_answer ?? ''
-      const existing = termMap.get(term)
-      if (!existing) {
+  for (const row of deckRows as { subcategory: string | null; spanish_term: string; english_answer: string | null }[]) {
+    const subcategory = row.subcategory ?? 'general'
+    const term = row.spanish_term.toLowerCase()
+    const translation = row.english_answer ?? ''
+    const existing = termMap.get(term)
+    if (!existing) {
+      termMap.set(term, { subcategory, translation })
+    } else {
+      const existingPriority = SUBCATEGORY_PRIORITY.indexOf(existing.subcategory)
+      const newPriority = SUBCATEGORY_PRIORITY.indexOf(subcategory)
+      if (newPriority < existingPriority) {
         termMap.set(term, { subcategory, translation })
-      } else {
-        const existingPriority = SUBCATEGORY_PRIORITY.indexOf(existing.subcategory)
-        const newPriority = SUBCATEGORY_PRIORITY.indexOf(subcategory)
-        if (newPriority < existingPriority) {
-          termMap.set(term, { subcategory, translation })
-        }
       }
     }
   }

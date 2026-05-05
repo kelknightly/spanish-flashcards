@@ -18,15 +18,16 @@ interface DeckInfo {
 }
 
 export function CustomDecksView() {
-  const { session } = useAuth()
+  const { user } = useAuth()
   const router = useRouter()
   const [decks, setDecks] = useState<DeckInfo[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!session) return
+    if (!user) return
     fetch('/api/decks', {
-      headers: { Authorization: `Bearer ${session.access_token}` },
+      headers: {
+ },
     })
       .then((r) => r.json())
       .then((data) => {
@@ -40,7 +41,7 @@ export function CustomDecksView() {
         setLoading(false)
       })
       .catch(() => setLoading(false))
-  }, [session])
+  }, [user])
 
   if (loading) {
     return (

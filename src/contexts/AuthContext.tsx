@@ -4,15 +4,20 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
-  useState,
   type ReactNode,
 } from 'react'
-import type { Session, User } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
+import { useSession, signIn as nextAuthSignIn, signOut as nextAuthSignOut } from 'next-auth/react'
+import type { Session } from 'next-auth'
+
+type AuthUser = {
+  id: string
+  email: string
+  name?: string | null
+  image?: string | null
+}
 
 type AuthState = {
-  user: User | null
+  user: AuthUser | null
   session: Session | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>
@@ -23,47 +28,42 @@ type AuthState = {
 const AuthContext = createContext<AuthState | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { data: session, status } = useSession()
+  const loading = status === 'loading'
 
-  useEffect(() => {
-    if (!supabase) {
-      setLoading(false)
-      return
-    }
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s)
-      setUser(s?.user ?? null)
-      setLoading(false)
-    })
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s)
-      setUser(s?.user ?? null)
-    })
-    return () => subscription.unsubscribe()
-  }, [])
+  const user: AuthUser | null = session?.user?.email
+    ? {
+        id: session.user.id,
+        email: session.user.email,
+        name: session.user.name,
+        image: session.user.image,
+      }
+    : null
 
   const signIn = useCallback(async (email: string, password: string) => {
-    if (!supabase) return { error: new Error('Supabase not configured') }
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    return { error: error ?? null }
+    const result = await nextAuthSignIn('credentials', {
+      email,
+      password,
+      redirect: false,
+    })
+    if (result?.error) {
+      return { error: new Error('Invalid email or password') }
+    }
+    return { error: null }
   }, [])
 
-  const signUp = useCallback(async (email: string, password: string) => {
-    if (!supabase) return { error: new Error('Supabase not configured') }
-    const { error } = await supabase.auth.signUp({ email, password })
-    return { error: error ?? null }
+  // Self-registration is disabled — use scripts/create-user.ts to add users.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const signUp = useCallback(async (_email: string, _password: string) => {
+    return { error: new Error('Self-registration is not enabled') }
   }, [])
 
   const signOut = useCallback(async () => {
-    if (supabase) await supabase.auth.signOut()
+    await nextAuthSignOut({ redirect: false })
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, session: session ?? null, loading, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   )

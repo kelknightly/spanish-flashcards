@@ -65,7 +65,7 @@ function highlightTerm(sentence: string, term: string): (string | React.ReactEle
 }
 
 export function ReviewView() {
-  const { session } = useAuth()
+  const { user } = useAuth()
   const router = useRouter()
   const { direction } = useCardDirection()
   // Snapshot direction at session start — mid-session toggles don't disrupt the queue
@@ -101,9 +101,9 @@ export function ReviewView() {
   const { play } = useSound()
 
   useEffect(() => {
-    if (!session) return
+    if (!user) return
     fetch(`/api/review?mode=${sessionDirection.current}`, {
-      headers: { Authorization: `Bearer ${session.access_token}` },
+      
     })
       .then((r) => r.json())
       .then((data) => {
@@ -122,12 +122,12 @@ export function ReviewView() {
         setErrorMsg('Failed to load review queue.')
         setViewState('error')
       })
-  }, [session])
+  }, [user])
 
   const currentCard = cards[currentIdx]
 
   const submitAnswer = useCallback(async () => {
-    if (!currentCard || !session || !answer.trim() || cardState !== 'input') return
+    if (!currentCard || !user || !answer.trim() || cardState !== 'input') return
     setCardState('evaluating')
 
     try {
@@ -135,7 +135,7 @@ export function ReviewView() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
+
         },
         body: JSON.stringify({
           vocabTermId: currentCard.vocab_term_id,
@@ -179,16 +179,16 @@ export function ReviewView() {
     } catch {
       setCardState('input')
     }
-  }, [currentCard, session, answer, cardState, currentIdx, triggerBurst, play])
+  }, [currentCard, user, answer, cardState, currentIdx, triggerBurst, play])
 
   const nextCard = useCallback(() => {
     if (currentIdx + 1 >= cards.length) {
       setViewState('complete')
       // Check personal best (fire-and-forget)
-      if (session?.access_token) {
+      if (user) {
         fetch('/api/personal-best', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ count: cards.length }),
         })
           .then((r) => r.json())

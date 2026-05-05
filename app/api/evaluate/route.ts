@@ -1,21 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthUserFromRequest, isAllowedEmail } from '@/lib/auth-api'
+import { getAuthUser, isAllowedEmail } from '@/lib/auth-api'
 import { getModel } from '@/lib/gemini'
-import { createClient } from '@supabase/supabase-js'
+import { sql } from '@/lib/db'
 import { updateSM2, SM2_DEFAULTS } from '@/lib/sm2'
 
-const url = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim()
-const anonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '').trim()
-
 export async function POST(request: NextRequest) {
-  const user = await getAuthUserFromRequest(request)
+  const user = await getAuthUser()
   if (!user || !isAllowedEmail(user.email)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-
-  const authHeader = request.headers.get('authorization')
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   let body: {
     vocabTermId: string
@@ -36,10 +29,6 @@ export async function POST(request: NextRequest) {
   if (!userAnswer?.trim() || !spanishTerm || !englishAnswer || !vocabTermId) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
-
-  const sb = createClient(url, anonKey, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  })
 
   // 1. AI evaluation
   const sentenceContext =
@@ -101,17 +90,16 @@ Respond ONLY with valid JSON, no extra text:
   }
 
   // 2. Fetch current SM-2 progress
-  const { data: progressRow } = await sb
-    .from('card_progress')
-    .select('ease_factor, interval_days, repetitions, total_reviews, total_correct')
-    .eq('vocab_term_id', vocabTermId)
-    .eq('user_id', user.id)
-    .single()
+  const progressRow = (await sql`
+    SELECT ease_factor, interval_days, repetitions, total_reviews, total_correct
+    FROM card_progress
+    WHERE vocab_term_id = ${vocabTermId} AND user_id = ${user.id}
+  ` as Record<string, unknown>[])[0]
 
   const isNewCard = !progressRow
 
   // Append snarky one-liner if this is a wrong answer and it's been wrong 3+ times before
-  const wrongCount = (progressRow?.total_reviews ?? 0) - (progressRow?.total_correct ?? 0)
+  const wrongCount = ((progressRow as Record<string, number> | undefined)?.total_reviews ?? 0) - ((progressRow as Record<string, number> | undefined)?.total_correct ?? 0)
   if (qualityScore < 3 && wrongCount >= 3) {
     const snarkyLines = [
       ' ¡Nos vemos de nuevo! This one really has a grudge against you.',
@@ -128,61 +116,49 @@ Respond ONLY with valid JSON, no extra text:
     feedback += '\n\n' + snarkyLines[wrongCount % snarkyLines.length]
   }
 
-  const current = progressRow
+  const pr = progressRow as Record<string, number | null> | undefined
+  const current = pr
     ? {
-        easeFactor: progressRow.ease_factor,
-        intervalDays: progressRow.interval_days,
-        repetitions: progressRow.repetitions,
+        easeFactor: pr.ease_factor as number,
+        intervalDays: pr.interval_days as number,
+        repetitions: pr.repetitions as number,
       }
     : SM2_DEFAULTS
 
   // 3. Apply SM-2
   const sm2 = updateSM2(current, qualityScore)
-  const isNewlyMastered = sm2.intervalDays >= 21 && (!progressRow || (progressRow.interval_days ?? 0) < 21)
+  const isNewlyMastered = sm2.intervalDays >= 21 && (!pr || ((pr.interval_days as number) ?? 0) < 21)
 
-  // 4. Persist progress
+  // 4. Persist progress (upsert)
   const now = new Date().toISOString()
   const nextReviewDate = sm2.nextReviewAt.toISOString().slice(0, 10)
 
-  if (progressRow) {
-    const { error: updateError } = await sb
-      .from('card_progress')
-      .update({
-        ease_factor: sm2.easeFactor,
-        interval_days: sm2.intervalDays,
-        repetitions: sm2.repetitions,
-        next_review_at: nextReviewDate,
-        last_quality_score: qualityScore,
-        last_reviewed_at: now,
-        total_reviews: (progressRow.total_reviews ?? 0) + 1,
-        total_correct: (progressRow.total_correct ?? 0) + (sm2.isCorrect ? 1 : 0),
-        ...(isNewlyMastered ? { mastered_at: now } : {}),
-      })
-      .eq('vocab_term_id', vocabTermId)
-      .eq('user_id', user.id)
-    if (updateError) {
-      console.error('[api/evaluate] Failed to update card_progress:', updateError.message)
-      return NextResponse.json({ error: 'Failed to save progress' }, { status: 500 })
-    }
+  if (pr) {
+    await sql`
+      UPDATE card_progress SET
+        ease_factor        = ${sm2.easeFactor},
+        interval_days      = ${sm2.intervalDays},
+        repetitions        = ${sm2.repetitions},
+        next_review_at     = ${nextReviewDate},
+        last_quality_score = ${qualityScore},
+        last_reviewed_at   = ${now},
+        total_reviews      = ${((pr.total_reviews as number) ?? 0) + 1},
+        total_correct      = ${((pr.total_correct as number) ?? 0) + (sm2.isCorrect ? 1 : 0)},
+        mastered_at        = ${isNewlyMastered ? now : (pr.mastered_at as string | null) ?? null}
+      WHERE vocab_term_id = ${vocabTermId} AND user_id = ${user.id}
+    `
   } else {
-    const { error: insertError } = await sb.from('card_progress').insert({
-      vocab_term_id: vocabTermId,
-      user_id: user.id,
-      ease_factor: sm2.easeFactor,
-      interval_days: sm2.intervalDays,
-      repetitions: sm2.repetitions,
-      next_review_at: nextReviewDate,
-      last_quality_score: qualityScore,
-      last_reviewed_at: now,
-      introduced_at: now,
-      total_reviews: 1,
-      total_correct: sm2.isCorrect ? 1 : 0,
-      ...(isNewlyMastered ? { mastered_at: now } : {}),
-    })
-    if (insertError) {
-      console.error('[api/evaluate] Failed to insert card_progress:', insertError.message)
-      return NextResponse.json({ error: 'Failed to save progress' }, { status: 500 })
-    }
+    await sql`
+      INSERT INTO card_progress
+        (vocab_term_id, user_id, ease_factor, interval_days, repetitions,
+         next_review_at, last_quality_score, last_reviewed_at, introduced_at,
+         total_reviews, total_correct, mastered_at)
+      VALUES (
+        ${vocabTermId}, ${user.id}, ${sm2.easeFactor}, ${sm2.intervalDays}, ${sm2.repetitions},
+        ${nextReviewDate}, ${qualityScore}, ${now}, ${now},
+        1, ${sm2.isCorrect ? 1 : 0}, ${isNewlyMastered ? now : null}
+      )
+    `
   }
 
   return NextResponse.json({
